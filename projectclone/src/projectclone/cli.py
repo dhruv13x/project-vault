@@ -43,6 +43,20 @@ from .rotation import rotate_backups
 from .scanner import walk_stats
 from .utils import sanitize_token, timestamp, human_size, ensure_dir, make_unique_path
 from .banner import print_logo
+from . import cas_engine
+
+
+def vault_main():
+    parser = argparse.ArgumentParser(prog="projectclone vault", description="Backup to content-addressable vault")
+    parser.add_argument("source", nargs="?", default=".", help="The project directory to backup")
+    parser.add_argument("vault_path", help="The destination directory for the vault")
+    args = parser.parse_args(sys.argv[2:])
+
+    try:
+        cas_engine.backup_to_vault(os.path.abspath(args.source), os.path.abspath(args.vault_path))
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
 
 def parse_args():
@@ -68,6 +82,10 @@ def parse_args():
 
 def main():
     print_logo()
+    if len(sys.argv) > 1 and sys.argv[1] == "vault":
+        vault_main()
+        return
+
     args = parse_args()
     cwd = Path.cwd()
     raw_foldername = cwd.name or "root"

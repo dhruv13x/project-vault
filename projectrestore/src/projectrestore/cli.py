@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import os
 from pathlib import Path
 
 from projectrestore.modules.checksum import verify_sha256_from_file
@@ -39,12 +40,25 @@ from projectrestore.modules.locking import create_pid_lock, release_pid_lock
 from projectrestore.modules.signals import GracefulShutdown
 from projectrestore.modules.utils import count_files, find_latest_backup
 from .banner import print_logo
-
+from . import restore_engine
 
 LOG = logging.getLogger("extract_backup")
 DEFAULT_BACKUP_DIR = Path("/sdcard/project_backups")
 DEFAULT_PATTERN = "*-bot_platform-*.tar.gz"
 DEFAULT_LOCKFILE = Path("/tmp/extract_backup.pid")
+
+
+def vault_restore_main() -> None:
+    parser = argparse.ArgumentParser(prog="projectrestore vault-restore", description="Restore from content-addressable vault")
+    parser.add_argument("manifest", help="Path to the snapshot manifest file")
+    parser.add_argument("dest", help="Destination directory to restore to")
+    args = parser.parse_args(sys.argv[2:])
+
+    try:
+        restore_engine.restore_snapshot(os.path.abspath(args.manifest), os.path.abspath(args.dest))
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
 
 # ---------------- CLI ----------------
@@ -122,6 +136,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     print_logo()
+    if len(sys.argv) > 1 and sys.argv[1] == "vault-restore":
+        vault_restore_main()
+        return 0
+
     args = parse_args()
     setup_logging(logging.DEBUG if args.debug else logging.INFO)
 
