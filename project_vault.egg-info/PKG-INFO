@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: project-vault
+Version: 0.1.0
+Summary: The Unified Project Lifecycle Manager
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: rich
+Requires-Dist: tqdm
+Requires-Dist: boto3
+
+# Project Vault
+A secure, atomic state-management suite containing projectclone and projectrestore.

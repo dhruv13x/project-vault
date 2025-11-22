@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+project_vault.egg-info/PKG-INFO
+project_vault.egg-info/SOURCES.txt
+project_vault.egg-info/dependency_links.txt
+project_vault.egg-info/entry_points.txt
+project_vault.egg-info/requires.txt
+project_vault.egg-info/top_level.txt
+src/cli.py
+src/common/__init__.py
+src/common/cas.py
+src/common/hashing.py
+src/common/ignore.py
+src/common/logger.py
+src/common/manifest.py
+src/common/test_write.py
