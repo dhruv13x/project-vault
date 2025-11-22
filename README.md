@@ -80,6 +80,17 @@ Output: ✅ OK or ❌ CORRUPTION DETECTED
 Verify your B2 credentials are correctly set in your environment.
 pv b2-check
 
+### 7. Garbage Collection (Maintenance)
+Cleanup orphaned data. If you delete old snapshots, the underlying objects stay in the vault. This command scans the vault and deletes any object not referenced by an active snapshot.
+
+```bash
+# Preview what will be deleted (Safe Mode)
+pv gc /sdcard/backups/my_vault --dry-run
+
+# Actually delete orphaned files
+pv gc /sdcard/backups/my_vault
+
+
 🏗️ Architecture
 Project Vault uses a Monorepo structure with a shared core library.
 project_vault/

@@ -60,9 +60,10 @@ def vault_main():
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Backup current directory into /sdcard/project_backups or custom dest")
+    default_dest = Path.home() / "project_backups"
+    p = argparse.ArgumentParser(description="Backup current directory into a destination folder")
     p.add_argument("short_note", help="short note to append to backup folder (e.g. 1000_pytests_passed)")
-    p.add_argument("--dest", default="/sdcard/project_backups", help="base destination folder (default: /sdcard/project_backups)")
+    p.add_argument("--dest", default=str(default_dest), help="base destination folder (default: ~/project_backups)")
     p.add_argument("-a", "--archive", action="store_true", help="create compressed tar.gz archive instead of folder")
     p.add_argument("--manifest", action="store_true", help="write MANIFEST.txt (sizes only)")
     p.add_argument("--manifest-sha", action="store_true", help="compute per-file SHA256 (can be slow)")

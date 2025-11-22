@@ -1,0 +1,12 @@
+# Project Vault Configuration (pv.toml)
+
+# --- Cloud Settings ---
+# The name of your B2/S3 Bucket
+bucket = "project-vault-backups"
+
+# The Endpoint URL (Must include https://)
+endpoint = "https://s3.eu-central-003.backblazeb2.com"
+
+# --- Default Paths (Optional) ---
+# You can uncomment these to set default vault locations
+vault_path = "/sdcard/my_custom_location"  # <-- The Global Default

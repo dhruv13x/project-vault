@@ -31,6 +31,43 @@ def restore_snapshot(manifest_path: str, destination_path: str) -> None:
         manifest_path: Path to the snapshot manifest file.
         destination_path: Directory where the project should be restored.
     """
+    # --- Safety Check: Prevent recursion/overwrite ---
+    abs_manifest_path = os.path.abspath(manifest_path)
+    abs_destination_path = os.path.abspath(destination_path)
+    
+    # vault_root is up two levels from manifest (snapshots/manifest.json -> snapshots -> vault)
+    vault_root = os.path.dirname(os.path.dirname(abs_manifest_path))
+    
+    # Check for overlap using os.path.commonpath
+    # We check if dest is inside vault OR vault is inside dest
+    try:
+        # commonpath raises ValueError if paths are on different drives (Windows)
+        # or if strict validation fails.
+        
+        # Case 1: Dest is inside Vault (e.g., restoring to vault/restored)
+        if os.path.commonpath([vault_root, abs_destination_path]) == vault_root:
+            print("❌ SAFETY ERROR: Cannot restore into the Vault itself!")
+            print(f"   Vault: {vault_root}")
+            print(f"   Dest:  {abs_destination_path}")
+            raise ValueError("Destination path is inside the Vault.")
+
+        # Case 2: Vault is inside Dest (e.g., restoring to /, and vault is at /vault)
+        # This is dangerous because we might overwrite the vault objects while restoring!
+        if os.path.commonpath([vault_root, abs_destination_path]) == abs_destination_path:
+            print("❌ SAFETY ERROR: The Vault is inside the restoration destination!")
+            print("   This could lead to overwriting the vault itself.")
+            print(f"   Vault: {vault_root}")
+            print(f"   Dest:  {abs_destination_path}")
+            raise ValueError("Vault path is inside the Destination path.")
+
+    except ValueError as e:
+        # Re-raise safety errors
+        if "Vault" in str(e):
+            raise
+        # Ignore other commonpath errors (e.g. diff drives) as that implies safety
+        pass
+
+
     print(f"Loading manifest from: {manifest_path}")
     try:
         snapshot_data = manifest.load_manifest(manifest_path)

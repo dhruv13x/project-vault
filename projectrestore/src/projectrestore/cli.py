@@ -43,7 +43,7 @@ from .banner import print_logo
 from . import restore_engine
 
 LOG = logging.getLogger("extract_backup")
-DEFAULT_BACKUP_DIR = Path("/sdcard/project_backups")
+DEFAULT_BACKUP_DIR = Path.home() / "project_backups"
 DEFAULT_PATTERN = "*-bot_platform-*.tar.gz"
 DEFAULT_LOCKFILE = Path("/tmp/extract_backup.pid")
 

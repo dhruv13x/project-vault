@@ -64,10 +64,17 @@ def sync_to_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str,
                     continue
                 
                 local_path = os.path.join(root, file)
-                remote_key = f"snapshots/{file}"
+                
+                # Calculate relative path to preserve directory structure
+                # e.g., /vault/snapshots/project_A/snap.json -> project_A/snap.json
+                rel_path = os.path.relpath(local_path, local_snapshots_dir)
+                
+                # Remote key: snapshots/project_A/snap.json
+                # We use forward slashes for cloud keys
+                remote_key = f"snapshots/{rel_path}".replace(os.sep, "/")
                 
                 if remote_key in remote_files:
-                    print(f"Skipping snapshot: {file} (Exists)")
+                    print(f"Skipping snapshot: {rel_path} (Exists)")
                 else:
                     manager.upload_file(local_path, remote_key)
     else:
@@ -110,11 +117,17 @@ def sync_from_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: st
         
         # --- Phase 2: Sync Snapshots (Cloud -> Local) ---
         elif remote_file.startswith("snapshots/") and remote_file.endswith(".json"):
-            filename = os.path.basename(remote_file)
-            local_path = os.path.join(vault_path, "snapshots", filename)
+            # remote_file is like "snapshots/project_A/snap.json"
+            # We map this to vault_path/snapshots/project_A/snap.json
+            
+            # Remove the "snapshots/" prefix for clean joining (safe way)
+            # split('/', 1)[1] gives "project_A/snap.json"
+            rel_path = remote_file.split('/', 1)[1]
+            
+            local_path = os.path.join(vault_path, "snapshots", rel_path)
             
             if os.path.exists(local_path):
-                print(f"Skipping snapshot: {filename} (Exists)")
+                print(f"Skipping snapshot: {rel_path} (Exists)")
             else:
                 manager.download_file(remote_file, local_path)
     

@@ -20,6 +20,7 @@ dependencies = [
     "rich",
     "tqdm",
     "boto3",
+    "tomli",
 ]
 
 [project.scripts]
@@ -28,3 +29,7 @@ pv = "src.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.project-vault]
+bucket = "project-vault-backups"
+endpoint = "https://s3.eu-central-003.backblazeb2.com"

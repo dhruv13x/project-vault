@@ -1,2 +1,0 @@
-[console_scripts]
-pv = src.cli:main

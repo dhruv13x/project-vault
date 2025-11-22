@@ -19,28 +19,31 @@ def create_snapshot_structure(source_path: str) -> Dict[str, Any]:
         "files": {}
     }
 
-def save_manifest(snapshot_data: Dict[str, Any], snapshots_dir: str) -> str:
+def save_manifest(snapshot_data: Dict[str, Any], snapshots_dir: str, project_name: str = "default") -> str:
     """
     Saves the snapshot data as a pretty-printed JSON file.
 
     The filename is generated based on the timestamp found in snapshot_data.
     Colons in the timestamp are replaced with hyphens to ensure filesystem compatibility.
+    Snapshots are organized into subdirectories by project_name.
 
     Args:
         snapshot_data: The dictionary containing snapshot details.
-        snapshots_dir: The directory where the manifest file should be saved.
+        snapshots_dir: The root directory where snapshots are stored.
+        project_name: The name of the project (used for subdirectory organization).
 
     Returns:
         The absolute path to the saved manifest file.
     """
-    os.makedirs(snapshots_dir, exist_ok=True)
+    target_dir = os.path.join(snapshots_dir, project_name)
+    os.makedirs(target_dir, exist_ok=True)
     
     # Sanitize timestamp for filename usage (replace colons with hyphens)
     # Example input: 2023-10-27T10:00:00.123456+00:00
     # Example output: snapshot_2023-10-27T10-00-00-123456+00-00.json
     safe_timestamp = snapshot_data["timestamp"].replace(":", "-")
     filename = f"snapshot_{safe_timestamp}.json"
-    file_path = os.path.join(snapshots_dir, filename)
+    file_path = os.path.join(target_dir, filename)
 
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(snapshot_data, f, indent=4)

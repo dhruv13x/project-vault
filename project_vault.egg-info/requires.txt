@@ -1,3 +1,0 @@
-rich
-tqdm
-boto3
