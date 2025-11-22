@@ -12,7 +12,7 @@ if shared_src_path not in sys.path:
     sys.path.append(shared_src_path)
 
 try:
-    from common import cas, manifest
+    from common import cas, manifest, ignore
 except ImportError as e:
     print(f"CRITICAL ERROR: Could not import shared modules 'common' from '{shared_src_path}'.")
     print(f"Details: {e}")
@@ -36,14 +36,34 @@ def backup_to_vault(source_path: str, vault_path: str) -> str:
     
     objects_dir = os.path.join(vault_path, "objects")
     snapshots_dir = os.path.join(vault_path, "snapshots")
+    
+    # Load ignore patterns
+    ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore']
+    vaultignore_path = os.path.join(source_path, ".vaultignore")
+    if os.path.exists(vaultignore_path):
+        ignore_patterns.extend(ignore.parse_ignore_file(vaultignore_path))
 
     print(f"Starting backup of '{source_path}' to '{vault_path}'...")
 
     # Walk through the source directory
-    for root, _, files in os.walk(source_path):
+    for root, dirs, files in os.walk(source_path):
+        # Prune ignored directories
+        # We iterate backwards to safely modify the list in-place
+        for i in range(len(dirs) - 1, -1, -1):
+            d = dirs[i]
+            dir_full_path = os.path.join(root, d)
+            if ignore.should_ignore(dir_full_path, ignore_patterns, source_path):
+                print(f"Skipped directory: {os.path.relpath(dir_full_path, source_path)}")
+                del dirs[i]
+
         for file in files:
             full_path = os.path.join(root, file)
             
+            # Check if file should be ignored
+            if ignore.should_ignore(full_path, ignore_patterns, source_path):
+                print(f"Skipped file: {os.path.relpath(full_path, source_path)}")
+                continue
+
             # Calculate relative path for the manifest
             rel_path = os.path.relpath(full_path, source_path)
             
