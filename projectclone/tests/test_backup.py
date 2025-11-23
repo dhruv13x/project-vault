@@ -5,10 +5,14 @@ import shutil
 import stat
 import subprocess
 import tarfile
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+# Fix import path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from projectclone.backup import (
     atomic_move,
@@ -183,6 +187,25 @@ class TestArchive:
         assert final.exists()
         assert sha_dst.exists()
 
+    def test_create_archive_failure_cleanup(self, temp_dir, temp_dest):
+        """Test that partial archive is removed on exception."""
+        tmp_file = temp_dest / "partial.tar.gz"
+        with patch("tarfile.open", side_effect=RuntimeError("tar fail")):
+            with pytest.raises(RuntimeError):
+                create_archive(temp_dir, tmp_file)
+        assert not tmp_file.exists()
+
+    def test_create_archive_failure_cleanup_fail(self, temp_dir, temp_dest):
+        """Test that exception in cleanup doesn't hide original error."""
+        tmp_file = temp_dest / "partial.tar.gz"
+        # Ensure it exists first so unlink is called
+        tmp_file.touch()
+
+        with patch("tarfile.open", side_effect=RuntimeError("tar fail")):
+            with patch("pathlib.Path.unlink", side_effect=OSError("unlink fail")):
+                with pytest.raises(RuntimeError, match="tar fail"):
+                    create_archive(temp_dir, tmp_file)
+
 
 class TestCopyTree:
     def test_copy_tree_atomic(self, temp_dir, temp_dest, mock_log_fp):
@@ -246,6 +269,17 @@ class TestCopyTree:
         if dst.exists():
             dst.unlink()
 
+    def test_safe_symlink_readlink_fail(self, temp_dir, mock_log_fp):
+        """Test readlink failure handling."""
+        src = temp_dir / "link_to_file1"
+        if not src.exists():
+            pytest.skip("Symlinks not supported")
+        dst = temp_dir / "dst_link"
+
+        with patch("os.readlink", side_effect=OSError("readlink fail")):
+            _safe_symlink_create(src, dst, log_fp=mock_log_fp)
+            assert not dst.exists()
+
     def test_clear_dangerous_bits(self, tmp_path):
         f = tmp_path / "test"
         f.touch()
@@ -266,6 +300,19 @@ class TestCopyTree:
             final = copy_tree_atomic(temp_dir, temp_dest, "error", show_progress=False)
         assert (final / "file1.txt").exists()
         assert not (final / "file2.bin").exists()
+
+    def test_permission_denied_during_scan(self, temp_dir, temp_dest, monkeypatch):
+        """Simulate PermissionError when scanning files."""
+        real_walk = os.walk
+        def fail_walk(top, followlinks=False):
+            raise PermissionError("Scanning denied")
+        monkeypatch.setattr(os, "walk", fail_walk)
+
+        # We also need to mock walk_stats if copy_tree_atomic calls it.
+        # The code calls walk_stats first.
+        with patch("projectclone.backup.walk_stats", return_value=(0, 0)):
+            with pytest.raises(PermissionError):
+                 copy_tree_atomic(temp_dir, temp_dest, "scan_fail")
 
 
 class TestRsync:

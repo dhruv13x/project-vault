@@ -64,7 +64,12 @@ def main():
     # Hijack for pass-through commands to avoid argparse issues with flags like --help
     if len(sys.argv) > 1:
         if sys.argv[1] == "clone":
-            from projectclone import cli as clone_cli
+            try:
+                from projectclone import cli as clone_cli
+            except ImportError as e:
+                print(f"Error executing command 'clone': {e}")
+                sys.exit(1)
+
             # Transform argv from ['pv', 'clone', ...] to ['projectclone', ...]
             sys.argv[0] = "projectclone"
             del sys.argv[1]
@@ -77,7 +82,12 @@ def main():
             sys.exit(0)
             return
         elif sys.argv[1] == "restore":
-            from projectrestore import cli as restore_cli
+            try:
+                from projectrestore import cli as restore_cli
+            except ImportError as e:
+                print(f"Error executing command 'restore': {e}")
+                sys.exit(1)
+
             sys.argv[0] = "projectrestore"
             del sys.argv[1]
             restore_cli.main()
