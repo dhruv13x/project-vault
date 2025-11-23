@@ -1,23 +1,5 @@
-import sys
 import os
-
-# Path setup to allow importing from the shared 'src/common' directory.
-# We are currently in projectclone/src/projectclone/
-# We need to reach src/ (which sits at the repository root)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# ../../../src resolves to project_vault/src
-shared_src_path = os.path.abspath(os.path.join(current_dir, "../../../src"))
-
-if shared_src_path not in sys.path:
-    sys.path.append(shared_src_path)
-
-try:
-    from common import b2
-except ImportError as e:
-    print(f"CRITICAL ERROR: Could not import shared modules 'common' from '{shared_src_path}'.")
-    print(f"Details: {e}")
-    print("Ensure that 'src/common' exists and has an __init__.py file.")
-    sys.exit(1)
+from src.common import b2
 
 
 def sync_to_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str, app_key: str):

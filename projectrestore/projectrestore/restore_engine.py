@@ -1,24 +1,4 @@
-import sys
-import os
-import shutil
-
-# Path setup to allow importing from the shared 'src/common' directory.
-# We are in projectrestore/src/projectrestore/
-# We need to reach src/ (which sits at the repository root)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# ../../../src resolves to project_vault/src
-shared_src_path = os.path.abspath(os.path.join(current_dir, "../../../src"))
-
-if shared_src_path not in sys.path:
-    sys.path.append(shared_src_path)
-
-try:
-    from common import manifest
-except ImportError as e:
-    print(f"CRITICAL ERROR: Could not import shared modules 'common' from '{shared_src_path}'.")
-    print(f"Details: {e}")
-    print("Ensure that 'src/common' exists and has an __init__.py file.")
-    sys.exit(1)
+from src.common import manifest
 
 def restore_snapshot(manifest_path: str, destination_path: str) -> None:
     """

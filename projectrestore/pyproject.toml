@@ -74,7 +74,6 @@ python_version = "3.11"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-pythonpath = "src"
 timeout = 10
 testpaths = ["tests"]
 addopts = [
@@ -82,7 +81,7 @@ addopts = [
   "--strict-config",
   "--strict-markers",
   "--tb=short",
-  "--cov",
+  "--cov=projectrestore",
   "--cov-report=term-missing",
   "--cov-report=html",
   "--cov-report=term-missing:skip-covered",

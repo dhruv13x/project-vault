@@ -4,6 +4,7 @@ import os
 import argparse
 import importlib
 from rich.console import Console
+import pdb # Added for debugging
 
 # Ensure we can import sibling packages
 # We are in src/
@@ -74,12 +75,14 @@ def main():
                 
             clone_cli.main()
             sys.exit(0)
+            return
         elif sys.argv[1] == "restore":
             from projectrestore import cli as restore_cli
             sys.argv[0] = "projectrestore"
             del sys.argv[1]
             restore_cli.main()
             sys.exit(0)
+            return
 
     parser = argparse.ArgumentParser(
         prog="pv",
@@ -133,6 +136,13 @@ def main():
     init_parser = subparsers.add_parser("init", help="Initialize configuration")
     init_parser.add_argument("--pyproject", action="store_true", help="Print configuration for pyproject.toml instead of creating pv.toml")
 
+    # --- List Command ---
+    list_parser = subparsers.add_parser("list", help="List available snapshots locally or in the cloud")
+    list_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault (optional)")
+    list_parser.add_argument("--cloud", action="store_true", help="List backups in Cloud (B2)")
+    list_parser.add_argument("--bucket", default=defaults.get("bucket"), help="Target B2 Bucket Name (optional)")
+    list_parser.add_argument("--limit", type=int, default=10, help="Show only top N backups per project")
+
     # --- B2 Check Command ---
     subparsers.add_parser("b2-check", help="Verify B2 Environment Variables")
 
@@ -162,6 +172,7 @@ def main():
             if not args.vault_path:
                 print("Error: vault_path must be specified in CLI or pv.toml")
                 sys.exit(1)
+                return
             
             source_abs = os.path.abspath(args.source)
             project_name = args.name or os.path.basename(source_abs)
@@ -181,6 +192,27 @@ def main():
                 print('# vault_path = "./my_vault"\n')
             else:
                 config.generate_init_file("pv.toml")
+
+        elif args.command == "list":
+            from projectclone import list_engine
+            if args.cloud:
+                if not args.bucket:
+                    print("Error: --bucket must be specified in CLI or pv.toml for cloud listing.")
+                    sys.exit(1)
+                
+                key_id = os.environ.get("B2_KEY_ID")
+                app_key = os.environ.get("B2_APP_KEY")
+
+                if not key_id or not app_key:
+                    print("Error: B2_KEY_ID and B2_APP_KEY environment variables must be set for cloud listing.")
+                    sys.exit(1)
+                
+                list_engine.list_cloud_snapshots(args.bucket, key_id, app_key)
+            else:
+                if not args.vault_path:
+                    print("Error: vault_path must be specified in CLI or pv.toml for local listing.")
+                    sys.exit(1)
+                list_engine.list_local_snapshots(os.path.abspath(args.vault_path))
 
         elif args.command == "sync":
             if not args.vault_path:

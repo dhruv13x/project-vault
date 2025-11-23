@@ -33,3 +33,34 @@ include = ["src*"]
 [tool.project-vault]
 bucket = "project-vault-backups"
 endpoint = "https://s3.eu-central-003.backblazeb2.com"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--timeout=10",
+    "--durations=10",
+    "--log-cli-level=INFO",
+    "-v",
+    "-ra",
+    "--tb=short",
+    "--showlocals",
+    "--strict-markers",
+    "--cov=src",
+    "--cov=projectclone",
+    "--cov=projectrestore",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=97",
+]
+
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.coverage.run]
+branch = true
+source = [
+    "src",
+    "projectclone",
+    "projectrestore",
+]
+
+[tool.coverage.report]
+show_missing = true
