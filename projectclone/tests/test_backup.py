@@ -7,7 +7,7 @@ import subprocess
 import tarfile
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -283,7 +283,8 @@ class TestCopyTree:
     def test_clear_dangerous_bits(self, tmp_path):
         f = tmp_path / "test"
         f.touch()
-        with patch("os.stat") as mock_stat, patch("os.chmod"):
+        # Mock pathlib.Path.stat specifically
+        with patch("pathlib.Path.stat") as mock_stat, patch("os.chmod"):
             mock_stat.return_value.st_mode = stat.S_ISUID | stat.S_IFREG | 0o644
             _clear_dangerous_bits(f)
             mock_stat.assert_called_once()
@@ -296,7 +297,7 @@ class TestCopyTree:
                 raise PermissionError("simulated read error")
             return real_copy2(src_fp, dst_fp, follow_symlinks=follow_symlinks)
         monkeypatch.setattr(shutil, "copy2", fake_copy2)
-        with capsys.disabled():  # Avoid progress prints
+        with capsys.disabled():  # Avoid progress prints causing issues
             final = copy_tree_atomic(temp_dir, temp_dest, "error", show_progress=False)
         assert (final / "file1.txt").exists()
         assert not (final / "file2.bin").exists()
