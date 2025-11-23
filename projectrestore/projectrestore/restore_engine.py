@@ -1,3 +1,6 @@
+import os
+import sys
+import shutil
 from src.common import manifest
 
 def restore_snapshot(manifest_path: str, destination_path: str) -> None:
