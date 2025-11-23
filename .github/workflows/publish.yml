@@ -62,6 +62,6 @@ jobs:
       - name: 🚀 Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages_dir: dist/
+          packages-dir: dist/
           verbose: true
-          skip_existing: true # Allow partial updates if one package failed previously
+          skip-existing: true # Allow partial updates if one package failed previously
