@@ -45,14 +45,13 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None)
     if project_name is None:
         project_name = os.path.basename(abs_source)
     
-    # Simple sanitization (replace spaces, strip non-alphanumeric except -_)
-    # This regex keeps alphanumeric, underscores, and hyphens.
+    # Simple sanitization
     import re
     safe_project_name = re.sub(r'[^a-zA-Z0-9_-]', '_', project_name)
     
     print(f"Using project name: {safe_project_name}")
 
-    # Initialize the snapshot structure
+    # Initialize the snapshot structure (Version 2)
     snapshot_data = manifest.create_snapshot_structure(source_path)
     
     objects_dir = os.path.join(vault_path, "objects")
@@ -84,8 +83,20 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None)
 
             rel_path = os.path.relpath(full_path, source_path)
             try:
+                # Capture Metadata
+                stat = os.stat(full_path)
+                
+                # Store Object
                 file_hash = cas.store_object(full_path, objects_dir)
-                snapshot_data["files"][rel_path] = file_hash
+                
+                # Record Entry (Version 2 Format)
+                snapshot_data["files"][rel_path] = {
+                    "hash": file_hash,
+                    "mode": stat.st_mode,
+                    "mtime": stat.st_mtime,
+                    "size": stat.st_size
+                }
+                
                 print(f"Hashed: {rel_path} -> {file_hash}")
             except Exception as e:
                 print(f"Error processing {rel_path}: {e}")

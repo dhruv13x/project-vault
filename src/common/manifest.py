@@ -3,6 +3,8 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, Any
 
+MANIFEST_VERSION = 2
+
 def create_snapshot_structure(source_path: str) -> Dict[str, Any]:
     """
     Creates the initial structure for a snapshot manifest.
@@ -11,9 +13,11 @@ def create_snapshot_structure(source_path: str) -> Dict[str, Any]:
         source_path: The absolute path of the source directory being backed up.
 
     Returns:
-        A dictionary containing the timestamp, absolute source path, and an empty files dictionary.
+        A dictionary containing the timestamp, absolute source path, empty files dictionary,
+        and manifest version.
     """
     return {
+        "version": MANIFEST_VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_path": os.path.abspath(source_path),
         "files": {}
@@ -39,8 +43,6 @@ def save_manifest(snapshot_data: Dict[str, Any], snapshots_dir: str, project_nam
     os.makedirs(target_dir, exist_ok=True)
     
     # Sanitize timestamp for filename usage (replace colons with hyphens)
-    # Example input: 2023-10-27T10:00:00.123456+00:00
-    # Example output: snapshot_2023-10-27T10-00-00-123456+00-00.json
     safe_timestamp = snapshot_data["timestamp"].replace(":", "-")
     filename = f"snapshot_{safe_timestamp}.json"
     file_path = os.path.join(target_dir, filename)

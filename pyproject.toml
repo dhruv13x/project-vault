@@ -1,66 +1,37 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "project-vault"
-version = "0.1.0"
-description = "The Unified Project Lifecycle Manager"
+version = "1.0.0"
+description = "The Unified Project Lifecycle Manager: Backup, Restore, and Teleport Projects Anywhere."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
-]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
+    {name = "Dhruv", email = "your.email@example.com"}
 ]
 dependencies = [
-    "rich",
-    "tqdm",
+    "projectclone",
+    "projectrestore",
     "boto3",
-    "tomli",
+    "b2sdk",
+    "rich",
+    "tomli; python_version < '3.11'"
 ]
 
 [project.scripts]
 pv = "src.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.project-vault]
-bucket = "project-vault-backups"
-endpoint = "https://s3.eu-central-003.backblazeb2.com"
+[tool.setuptools]
+packages = ["src", "src.common"]
 
 [tool.pytest.ini_options]
-addopts = [
-    "--timeout=10",
-    "--durations=10",
-    "--log-cli-level=INFO",
-    "-v",
-    "-ra",
-    "--tb=short",
-    "--showlocals",
-    "--strict-markers",
-    "--cov=src",
-    "--cov=projectclone",
-    "--cov=projectrestore",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-fail-under=97",
+minversion = "6.0"
+addopts = "--cov=src --cov=projectclone --cov=projectrestore --cov-report=term-missing"
+testpaths = [
+    "tests",
+    "projectclone/tests",
+    "projectrestore/tests",
 ]
-
-log_cli = true
-log_cli_level = "INFO"
-
-[tool.coverage.run]
-branch = true
-source = [
-    "src",
-    "projectclone",
-    "projectrestore",
-]
-
-[tool.coverage.report]
-show_missing = true

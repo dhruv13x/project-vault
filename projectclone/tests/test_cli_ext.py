@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -113,3 +113,113 @@ class TestCliExt:
         assert excinfo.value.code == 2
         captured = capsys.readouterr()
         assert "ERROR:" in captured.out
+
+    @patch("os.statvfs")
+    def test_main_insufficient_space(self, mock_statvfs, temp_src, temp_dest, capsys, monkeypatch):
+        # Mock statvfs to return little free space (10 bytes)
+        # f_frsize * f_bavail = free space
+        mock_stat = MagicMock()
+        mock_stat.f_frsize = 1
+        mock_stat.f_bavail = 10
+        mock_statvfs.return_value = mock_stat
+
+        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--dest", str(temp_dest), "--yes"])
+        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+
+        # Ensure we have some file size > 10
+        with patch("projectclone.cli.walk_stats", return_value=(1, 100)):
+             with patch("projectclone.cli.copy_tree_atomic"):
+                main()
+
+        captured = capsys.readouterr()
+        assert "WARNING: estimated backup size exceeds free space" in captured.out
+
+    @patch("os.statvfs")
+    def test_main_statvfs_error(self, mock_statvfs, temp_src, temp_dest, capsys, monkeypatch):
+        mock_statvfs.side_effect = OSError("Stat fail")
+        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--dest", str(temp_dest), "--yes"])
+        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+
+        with patch("projectclone.cli.copy_tree_atomic"):
+            main()
+        # Should proceed gracefully
+        captured = capsys.readouterr()
+        assert "Scanning files" in captured.out
+
+    @patch("projectclone.cli.atomic_move")
+    @patch("projectclone.cli.create_archive")
+    def test_main_archive_move_fail(self, mock_create, mock_move, temp_src, temp_dest, capsys, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--archive", "--dest", str(temp_dest), "--yes"])
+        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+        
+        dummy_archive = temp_dest / "dummy_archive.tar.gz"
+        dummy_archive.touch()
+        mock_create.return_value = dummy_archive
+        
+        mock_move.side_effect = OSError("Move failed")
+
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+        assert excinfo.value.code == 2
+        
+        captured = capsys.readouterr()
+        assert "Move failed" in captured.out
+
+    @patch("projectclone.cli.atomic_move")
+    @patch("projectclone.cli.create_archive")
+    def test_main_archive_sha_move_fail(self, mock_create, mock_move, temp_src, temp_dest, capsys, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--archive", "--dest", str(temp_dest), "--yes"])
+        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+        
+        dummy_archive = temp_dest / "dummy_archive.tar.gz"
+        dummy_archive.touch()
+        # Create checksum file
+        (temp_dest / "dummy_archive.tar.gz.sha256").touch()
+        
+        mock_create.return_value = dummy_archive
+        
+        # First move (archive) succeeds, second move (sha) fails
+        mock_move.side_effect = [None, OSError("SHA move failed")]
+
+        main()
+        # Should not exit with error, just log/print
+        # But currently logic catches exception inside the block and logs it, continuing?
+        # Let's check code: 
+        # try: atomic_move(sha_src, sha_dst) except Exception as e: log...
+        
+        captured = capsys.readouterr()
+        # If logic handles it gracefully, we see success message
+        assert "Archive created" in captured.out
+
+    @patch("projectclone.cleanup.cleanup_state.unregister_tmp_file")
+    @patch("projectclone.cli.create_archive")
+    def test_main_cleanup_unregister_fail(self, mock_create, mock_unregister, temp_src, temp_dest, capsys, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--archive", "--dest", str(temp_dest), "--yes"])
+        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+        
+        dummy_archive = temp_dest / "dummy_archive.tar.gz"
+        dummy_archive.touch()
+        mock_create.return_value = dummy_archive
+        
+        mock_unregister.side_effect = Exception("Unregister fail")
+        
+        main()
+        captured = capsys.readouterr()
+        assert "Archive created" in captured.out
+
+    @patch("pathlib.Path.open")
+    def test_main_log_write_fail(self, mock_log_open, temp_src, temp_dest, capsys, monkeypatch):
+        # Mock file object that fails on write
+        mock_file = MagicMock()
+        mock_file.write.side_effect = IOError("Write fail")
+        mock_log_open.return_value = mock_file
+        
+        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--dest", str(temp_dest), "--yes"])
+        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+        
+        with patch("projectclone.cli.copy_tree_atomic"):
+            main()
+            
+        # Should run without crashing
+        captured = capsys.readouterr()
+        assert "Folder backup created" in captured.out

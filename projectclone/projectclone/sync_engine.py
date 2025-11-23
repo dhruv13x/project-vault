@@ -1,25 +1,40 @@
 import os
-from src.common import b2
+from src.common import b2, s3
 
 
-def sync_to_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str, app_key: str):
+def _get_storage_manager(bucket_name: str, endpoint: str, key_id: str, app_key: str):
     """
-    Syncs the local vault content (objects and snapshots) to a Backblaze B2 bucket.
+    Factory to return the appropriate storage manager (S3 or B2).
+    """
+    # Logic: If an endpoint is provided OR we have AWS credentials in env, prefer S3.
+    # Otherwise, default to B2 Native.
+    if endpoint or os.environ.get("AWS_ACCESS_KEY_ID"):
+        return s3.S3Manager(key_id, app_key, bucket_name, endpoint)
+    else:
+        return b2.B2Manager(key_id, app_key, bucket_name)
+
+
+def sync_to_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str, app_key: str, dry_run: bool = False):
+    """
+    Syncs the local vault content (objects and snapshots) to a Cloud Bucket (S3 or B2).
     
     Args:
         vault_path: Path to the local vault directory.
-        bucket_name: Name of the target B2 bucket.
-        endpoint: (Ignored) Kept for CLI compatibility.
-        key_id: B2 Key ID.
-        app_key: B2 App Key.
+        bucket_name: Name of the target bucket.
+        endpoint: S3 Endpoint URL (optional).
+        key_id: Access Key ID.
+        app_key: Secret Access Key.
+        dry_run: If True, simulate the upload.
     """
-    print(f"Connecting to B2 bucket: {bucket_name}...")
-    manager = b2.B2Manager(key_id, app_key, bucket_name)
+    print(f"Connecting to cloud bucket: {bucket_name}...")
+    manager = _get_storage_manager(bucket_name, endpoint, key_id, app_key)
     
-    print("Fetching file list from B2...")
+    print("Fetching file list from cloud...")
     remote_files = manager.list_file_names()
     print(f"Found {len(remote_files)} existing files in cloud.")
     
+    items_to_push = 0
+
     # --- Phase 1: Sync Objects ---
     local_objects_dir = os.path.join(vault_path, "objects")
     if os.path.exists(local_objects_dir):
@@ -30,10 +45,15 @@ def sync_to_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str,
                 remote_key = f"objects/{file}"
                 
                 if remote_key in remote_files:
-                    print(f"Skipping object: {file} (Exists)")
+                    if not dry_run:
+                        print(f"Skipping object: {file} (Exists)")
                 else:
-                    # Uploading happens inside manager.upload_file which prints progress
-                    manager.upload_file(local_path, remote_key)
+                    if dry_run:
+                        print(f"[Dry Run] Would push object: {file}")
+                    else:
+                        # Uploading happens inside manager.upload_file which prints progress
+                        manager.upload_file(local_path, remote_key)
+                    items_to_push += 1
     else:
         print(f"No objects directory found at {local_objects_dir}")
 
@@ -56,36 +76,47 @@ def sync_to_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str,
                 remote_key = f"snapshots/{rel_path}".replace(os.sep, "/")
                 
                 if remote_key in remote_files:
-                    print(f"Skipping snapshot: {rel_path} (Exists)")
+                    if not dry_run:
+                        print(f"Skipping snapshot: {rel_path} (Exists)")
                 else:
-                    manager.upload_file(local_path, remote_key)
+                    if dry_run:
+                        print(f"[Dry Run] Would push snapshot: {rel_path}")
+                    else:
+                        manager.upload_file(local_path, remote_key)
+                    items_to_push += 1
     else:
         print(f"No snapshots directory found at {local_snapshots_dir}")
 
-    print("Cloud sync complete.")
+    if dry_run:
+        print(f"Dry run complete. {items_to_push} items would be pushed.")
+    else:
+        print(f"Cloud sync complete. {items_to_push} items pushed.")
 
 
-def sync_from_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str, app_key: str):
+def sync_from_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: str, app_key: str, dry_run: bool = False):
     """
-    Syncs the local vault content (objects and snapshots) FROM a Backblaze B2 bucket.
+    Syncs the local vault content (objects and snapshots) FROM a Cloud Bucket.
     Downloads any objects or snapshots that are missing locally.
     
     Args:
         vault_path: Path to the local vault directory.
-        bucket_name: Name of the source B2 bucket.
-        endpoint: (Ignored) Kept for CLI compatibility.
-        key_id: B2 Key ID.
-        app_key: B2 App Key.
+        bucket_name: Name of the source bucket.
+        endpoint: S3 Endpoint URL (optional).
+        key_id: Access Key ID.
+        app_key: Secret Access Key.
+        dry_run: If True, simulate the download.
     """
-    print(f"Connecting to B2 bucket: {bucket_name}...")
-    manager = b2.B2Manager(key_id, app_key, bucket_name)
+    print(f"Connecting to cloud bucket: {bucket_name}...")
+    manager = _get_storage_manager(bucket_name, endpoint, key_id, app_key)
     
-    print("Fetching file list from B2...")
+    print("Fetching file list from cloud...")
     remote_files = manager.list_file_names()
     print(f"Found {len(remote_files)} files in cloud.")
 
+    items_to_pull = 0
+
     # --- Phase 1: Sync Objects (Cloud -> Local) ---
-    print("Syncing objects from cloud...")
+    print("Scanning for objects to pull...")
     for remote_file in remote_files:
         if remote_file.startswith("objects/"):
             # Extract filename (hash) from remote path "objects/hash"
@@ -93,9 +124,14 @@ def sync_from_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: st
             local_path = os.path.join(vault_path, "objects", filename)
             
             if os.path.exists(local_path):
-                print(f"Skipping object: {filename} (Exists)")
+                if not dry_run:
+                    print(f"Skipping object: {filename} (Exists)")
             else:
-                manager.download_file(remote_file, local_path)
+                if dry_run:
+                    print(f"[Dry Run] Would pull object: {filename}")
+                else:
+                    manager.download_file(remote_file, local_path)
+                items_to_pull += 1
         
         # --- Phase 2: Sync Snapshots (Cloud -> Local) ---
         elif remote_file.startswith("snapshots/") and remote_file.endswith(".json"):
@@ -109,8 +145,16 @@ def sync_from_cloud(vault_path: str, bucket_name: str, endpoint: str, key_id: st
             local_path = os.path.join(vault_path, "snapshots", rel_path)
             
             if os.path.exists(local_path):
-                print(f"Skipping snapshot: {rel_path} (Exists)")
+                if not dry_run:
+                    print(f"Skipping snapshot: {rel_path} (Exists)")
             else:
-                manager.download_file(remote_file, local_path)
+                if dry_run:
+                    print(f"[Dry Run] Would pull snapshot: {rel_path}")
+                else:
+                    manager.download_file(remote_file, local_path)
+                items_to_pull += 1
     
-    print("Cloud download complete.")
+    if dry_run:
+        print(f"Dry run complete. {items_to_pull} items would be pulled.")
+    else:
+        print(f"Cloud download complete. {items_to_pull} items pulled.")

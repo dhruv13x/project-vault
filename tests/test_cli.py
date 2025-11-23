@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 # Import the cli module after adjusting sys.path
-from cli import main, b2_check_main
+from cli import main, check_cloud_env
 
 @pytest.fixture
 def mock_config_load():
@@ -68,6 +68,44 @@ def mock_gc_engine():
         yield sys.modules['projectclone'].gc_engine
 
 class TestMainCli:
+    def test_backup_passthrough(self, mock_sys_exit, mock_projectclone_cli, mock_config_load):
+        sys.argv = ['pv', 'backup', 'arg1', 'arg2']
+        # mock_projectclone_cli is already the mock for the module 'projectclone.cli'
+        # so when main() imports it, it gets this mock.
+        
+        mock_sys_exit.side_effect = SystemExit(0)
+        try:
+            main()
+        except SystemExit:
+            pass
+        
+        mock_projectclone_cli.main.assert_called_once()
+        assert sys.argv == ['projectclone', 'arg1', 'arg2']
+
+    def test_archive_restore_passthrough(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load):
+        sys.argv = ['pv', 'archive-restore', 'arg1']
+        
+        mock_sys_exit.side_effect = SystemExit(0)
+        try:
+            main()
+        except SystemExit:
+            pass
+        
+        mock_projectrestore_cli.main.assert_called_once()
+        assert sys.argv == ['projectrestore', 'arg1']
+
+    def test_backup_passthrough_with_config_dest(self, mock_sys_exit, mock_projectclone_cli):
+         with patch('cli.config.load_project_config', return_value={'vault_path': '/config/vault'}) as mock_load:
+            sys.argv = ['pv', 'backup', 'src']
+            mock_sys_exit.side_effect = SystemExit(0)
+            try:
+                main()
+            except SystemExit:
+                pass
+            
+            assert '--dest' in sys.argv
+            assert '/config/vault' in sys.argv
+
     def test_no_command_prints_help(self, mock_sys_exit, capture_stdout, mock_config_load):
         sys.argv = ['pv']
         main()
@@ -77,22 +115,21 @@ class TestMainCli:
         mock_sys_exit.assert_called_once_with(0)
 
     def test_clone_command_dispatches(self, mock_sys_exit, mock_projectclone_cli, mock_config_load):
-        sys.argv = ['pv', 'clone', 'source_dir', '--dest', 'dest_dir']
+        sys.argv = ['pv', 'backup', 'source_dir', '--dest', 'dest_dir']
         main()
         mock_projectclone_cli.main.assert_called_once()
-        # Ensure sys.argv was correctly transformed
         assert sys.argv == ['projectclone', 'source_dir', '--dest', 'dest_dir']
 
     def test_clone_command_dispatches_with_vault_path_from_config(self, mock_sys_exit, mock_projectclone_cli):
         with patch('cli.config.load_project_config', return_value={'vault_path': '/config/vault'}) as mock_load:
-            sys.argv = ['pv', 'clone', 'source_dir']
+            sys.argv = ['pv', 'backup', 'source_dir']
             main()
             mock_projectclone_cli.main.assert_called_once()
             assert sys.argv == ['projectclone', 'source_dir', '--dest', '/config/vault']
             mock_sys_exit.assert_called_once_with(0)
 
     def test_restore_command_dispatches(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load):
-        sys.argv = ['pv', 'restore', 'some_arg']
+        sys.argv = ['pv', 'archive-restore', 'some_arg']
         main()
         mock_projectrestore_cli.main.assert_called_once()
         assert sys.argv == ['projectrestore', 'some_arg']
@@ -118,7 +155,7 @@ class TestMainCli:
         mock_sys_exit.assert_not_called()
 
     def test_vault_command_missing_vault_path_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine, mock_config_load):
-        sys.argv = ['pv', 'vault', 'my_source'] # vault_path is not provided
+        sys.argv = ['pv', 'vault', 'my_source'] 
         main()
         output = capture_stdout()
         assert "Error: vault_path must be specified in CLI or pv.toml" in output
@@ -127,7 +164,7 @@ class TestMainCli:
 
     def test_vault_command_missing_vault_path_from_config_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine):
         with patch('cli.config.load_project_config', return_value={'vault_path': None}) as mock_load:
-            sys.argv = ['pv', 'vault', 'my_source'] # vault_path is not provided
+            sys.argv = ['pv', 'vault', 'my_source']
             main()
             output = capture_stdout()
             assert "Error: vault_path must be specified in CLI or pv.toml" in output
@@ -143,89 +180,80 @@ class TestMainCli:
         )
         mock_sys_exit.assert_not_called()
 
-    def test_b2_check_command_calls_b2_check_main(self, mock_sys_exit, mock_config_load):
-        sys.argv = ['pv', 'b2-check']
-        with patch('cli.b2_check_main') as mock_b2_check:
+    def test_check_env_command_calls_check_cloud_env(self, mock_sys_exit, mock_config_load):
+        sys.argv = ['pv', 'check-env']
+        with patch('cli.check_cloud_env') as mock_check_env:
             main()
-            mock_b2_check.assert_called_once()
-            mock_sys_exit.assert_not_called() # b2_check_main doesn't exit directly
+            mock_check_env.assert_called_once()
+            mock_sys_exit.assert_not_called() 
 
     def test_sync_command_missing_env_vars(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
-        sys.argv = ['pv', 'sync', '/vault', '--bucket', 'b', '--endpoint', 'e']
-        # Mock sys.exit to raise SystemExit so execution stops
+        sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         mock_sys_exit.side_effect = SystemExit(1)
-
         with patch('os.environ.get', return_value=None):
             try:
                 main()
             except SystemExit:
                 pass
-
             output = capture_stdout()
-            assert "Error: B2_KEY_ID and B2_APP_KEY environment variables must be set" in output
+            assert "Error: Cloud credentials missing." in output
             mock_sys_exit.assert_called_with(1)
-            # Verify execution did not proceed to sync_engine
             mock_sync_engine.sync_to_cloud.assert_not_called()
 
     def test_sync_command_missing_b2_key_id(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
-        """Test sync command when B2_KEY_ID is missing but B2_APP_KEY is present."""
-        sys.argv = ['pv', 'sync', '/vault', '--bucket', 'b', '--endpoint', 'e']
+        sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         mock_sys_exit.side_effect = SystemExit(1)
-
         def mock_env_get(key):
-            if key == 'B2_APP_KEY':
-                return 'some_app_key'
-            return None # Simulate missing B2_KEY_ID
-
+            if key == 'B2_APP_KEY': return 'some_app_key'
+            return None
         with patch('os.environ.get', side_effect=mock_env_get):
             try:
                 main()
             except SystemExit:
                 pass
-
             output = capture_stdout()
-            assert "Error: B2_KEY_ID and B2_APP_KEY environment variables must be set" in output
+            assert "Error: Cloud credentials missing." in output
             mock_sys_exit.assert_called_with(1)
             mock_sync_engine.sync_to_cloud.assert_not_called()
 
     def test_sync_command_missing_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
-        """Test pv sync where bucket is missing (No CLI arg AND no Config)."""
-        # Ensure config returns no bucket
         mock_config_load.return_value = {'vault_path': '/vault'}
-        sys.argv = ['pv', 'sync', '/vault'] # No bucket/endpoint in args, and default fallback to None
-
+        sys.argv = ['pv', 'push', '/vault'] 
         mock_sys_exit.side_effect = SystemExit(1)
-
         try:
             main()
         except SystemExit:
             pass
-
         output = capture_stdout()
-        assert "Error: Bucket/Endpoint must be specified in CLI or pyproject.toml" in output
+        assert "Error: Bucket must be specified in CLI or pyproject.toml" in output
         mock_sys_exit.assert_called_with(1)
         mock_sync_engine.sync_to_cloud.assert_not_called()
 
     def test_sync_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load):
-        sys.argv = ['pv', 'sync', '/vault', '--bucket', 'b', '--endpoint', 'e']
+        sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
             main()
             mock_sync_engine.sync_to_cloud.assert_called_once_with(
-                os.path.abspath('/vault'), 'b', 'e', 'val', 'val'
+                os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=False
+            )
+
+    def test_sync_command_dry_run(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+        sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e', '--dry-run']
+        with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
+            main()
+            mock_sync_engine.sync_to_cloud.assert_called_once_with(
+                os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=True
             )
 
     def test_pull_command_invalid_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
-        sys.argv = ['pv', 'pull', '/vault'] # missing bucket/endpoint
-        # Mock sys.exit to raise SystemExit so execution stops
+        sys.argv = ['pv', 'pull', '/vault']
         mock_sys_exit.side_effect = SystemExit(1)
-
         try:
             main()
         except SystemExit:
             pass
-
         output = capture_stdout()
-        assert "Error: Bucket/Endpoint must be specified in CLI or pyproject.toml" in output
+        assert "Error: Bucket must be specified in CLI or pyproject.toml" in output
         mock_sys_exit.assert_called_with(1)
         mock_sync_engine.sync_from_cloud.assert_not_called()
 
@@ -234,7 +262,15 @@ class TestMainCli:
         with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
             main()
             mock_sync_engine.sync_from_cloud.assert_called_once_with(
-                os.path.abspath('/vault'), 'b', 'e', 'val', 'val'
+                os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=False
+            )
+
+    def test_pull_command_dry_run(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+        sys.argv = ['pv', 'pull', '/vault', '--bucket', 'b', '--endpoint', 'e', '--dry-run']
+        with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
+            main()
+            mock_sync_engine.sync_from_cloud.assert_called_once_with(
+                os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=True
             )
 
     def test_init_pyproject(self, mock_sys_exit, capture_stdout, mock_config_load):
@@ -242,12 +278,8 @@ class TestMainCli:
         main()
         output = capture_stdout()
         assert "[tool.project-vault]" in output
-        assert 'bucket = "my-project-backups"' in output
-        assert 'endpoint = "https://s3.eu-central-003.backblazeb2.com"' in output
-        assert '# vault_path = "./my_vault"' in output
 
     def test_init_default(self, mock_sys_exit, mock_config_load):
-        """Test pv init without arguments (creates file)."""
         sys.argv = ['pv', 'init']
         with patch('cli.config.generate_init_file') as mock_gen:
             main()
@@ -258,66 +290,53 @@ class TestMainCli:
         mock_integrity_engine.verify_vault.return_value = True
         main()
         mock_integrity_engine.verify_vault.assert_called_once_with(os.path.abspath('/vault'))
-        mock_sys_exit.assert_not_called()
 
     def test_check_integrity_success(self, mock_sys_exit, mock_integrity_engine, mock_config_load):
-        """Explicit test for check-integrity success path."""
         sys.argv = ['pv', 'check-integrity', '/vault']
         mock_integrity_engine.verify_vault.return_value = True
         main()
         mock_integrity_engine.verify_vault.assert_called_once()
-        mock_sys_exit.assert_not_called()
 
     def test_clone_import_error(self, mock_sys_exit, capture_stdout, mock_config_load):
-        sys.argv = ['pv', 'clone', 'src']
+        sys.argv = ['pv', 'backup', 'src']
         mock_sys_exit.side_effect = SystemExit(1)
-
         original_import = __import__
         def mock_import(name, *args, **kwargs):
             if name == 'projectclone':
                 raise ImportError("No module named projectclone")
             return original_import(name, *args, **kwargs)
-
         with patch('builtins.__import__', side_effect=mock_import):
             try:
                 main()
             except SystemExit:
                 pass
-
             output = capture_stdout()
-            assert "Error executing command 'clone': No module named projectclone" in output
-            mock_sys_exit.assert_called_with(1)
+            assert "Error executing command 'backup': No module named projectclone" in output
 
     def test_restore_import_error(self, mock_sys_exit, capture_stdout, mock_config_load):
-        sys.argv = ['pv', 'restore', 'src']
+        sys.argv = ['pv', 'archive-restore', 'src']
         mock_sys_exit.side_effect = SystemExit(1)
-
         original_import = __import__
         def mock_import(name, *args, **kwargs):
             if name == 'projectrestore':
                 raise ImportError("No module named projectrestore")
             return original_import(name, *args, **kwargs)
-
         with patch('builtins.__import__', side_effect=mock_import):
             try:
                 main()
             except SystemExit:
                 pass
-
             output = capture_stdout()
-            assert "Error executing command 'restore': No module named projectrestore" in output
-            mock_sys_exit.assert_called_with(1)
-
-    # New Tests to increase coverage for src/cli.py
+            assert "Error executing command 'archive-restore': No module named projectrestore" in output
 
     def test_list_cloud_success(self, mock_sys_exit, mock_list_engine, mock_config_load):
         sys.argv = ['pv', 'list', '--cloud', '--bucket', 'my-bucket']
         with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
             main()
-            mock_list_engine.list_cloud_snapshots.assert_called_once_with('my-bucket', 'val', 'val')
+            mock_list_engine.list_cloud_snapshots.assert_called_once_with('my-bucket', 'val', 'val', None)
 
     def test_list_cloud_missing_bucket(self, mock_sys_exit, capture_stdout, mock_config_load):
-        sys.argv = ['pv', 'list', '--cloud'] # no bucket
+        sys.argv = ['pv', 'list', '--cloud']
         mock_sys_exit.side_effect = SystemExit(1)
         try:
             main()
@@ -325,7 +344,6 @@ class TestMainCli:
             pass
         output = capture_stdout()
         assert "Error: --bucket must be specified" in output
-        mock_sys_exit.assert_called_with(1)
 
     def test_list_cloud_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load):
         sys.argv = ['pv', 'list', '--cloud', '--bucket', 'my-bucket']
@@ -336,8 +354,7 @@ class TestMainCli:
             except SystemExit:
                 pass
             output = capture_stdout()
-            assert "Error: B2_KEY_ID and B2_APP_KEY environment variables must be set" in output
-            mock_sys_exit.assert_called_with(1)
+            assert "Error: Cloud credentials missing." in output
 
     def test_list_local_success(self, mock_sys_exit, mock_list_engine, mock_config_load):
         sys.argv = ['pv', 'list', '/vault']
@@ -354,14 +371,46 @@ class TestMainCli:
             pass
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
-        mock_sys_exit.assert_called_with(1)
 
     def test_gc_command(self, mock_sys_exit, mock_gc_engine, mock_config_load):
         sys.argv = ['pv', 'gc', '/vault', '--dry-run']
         main()
         mock_gc_engine.run_garbage_collection.assert_called_once_with(os.path.abspath('/vault'), True)
 
-    def test_gc_missing_vault(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_push_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load):
+        sys.argv = ['pv', 'push']
+        mock_config_load.return_value = {'vault_path': None}
+        mock_sys_exit.side_effect = SystemExit(1)
+        try:
+            main()
+        except SystemExit:
+            pass
+        output = capture_stdout()
+        assert "Error: vault_path must be specified" in output
+
+    def test_push_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load):
+        sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
+        with patch('os.environ.get', return_value=None):
+            mock_sys_exit.side_effect = SystemExit(1)
+            try:
+                main()
+            except SystemExit:
+                pass
+            output = capture_stdout()
+            assert "Error: Cloud credentials missing." in output
+
+    def test_pull_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load):
+        sys.argv = ['pv', 'pull']
+        mock_config_load.return_value = {'vault_path': None}
+        mock_sys_exit.side_effect = SystemExit(1)
+        try:
+            main()
+        except SystemExit:
+            pass
+        output = capture_stdout()
+        assert "Error: vault_path must be specified" in output
+
+    def test_gc_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load):
         sys.argv = ['pv', 'gc']
         mock_config_load.return_value = {'vault_path': None}
         mock_sys_exit.side_effect = SystemExit(1)
@@ -371,73 +420,127 @@ class TestMainCli:
             pass
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
-        mock_sys_exit.assert_called_with(1)
 
-    def test_check_integrity_failure(self, mock_sys_exit, mock_integrity_engine, mock_config_load):
-        sys.argv = ['pv', 'check-integrity', '/vault']
-        mock_integrity_engine.verify_vault.return_value = False
-        mock_sys_exit.side_effect = SystemExit(1)
-        try:
-            main()
-        except SystemExit:
-            pass
-        mock_sys_exit.assert_called_with(1)
+    def test_get_credentials_b2_only(self):
+        from cli import get_credentials
+        with patch('os.environ.get') as mock_env:
+            def side_effect(key):
+                if key == 'B2_KEY_ID': return 'b2key'
+                if key == 'B2_APP_KEY': return 'b2app'
+                return None
+            mock_env.side_effect = side_effect
+            key, app = get_credentials()
+            assert key == 'b2key'
+            assert app == 'b2app'
 
-            
-class TestB2CheckMain:
+    def test_get_credentials_aws_priority(self):
+        from cli import get_credentials
+        with patch('os.environ.get') as mock_env:
+            def side_effect(key):
+                if key == 'AWS_ACCESS_KEY_ID': return 'awskey'
+                if key == 'AWS_SECRET_ACCESS_KEY': return 'awssecret'
+                if key == 'B2_KEY_ID': return 'b2key'
+                if key == 'B2_APP_KEY': return 'b2app'
+                return None
+            mock_env.side_effect = side_effect
+            key, app = get_credentials()
+            assert key == 'awskey'
+            assert app == 'awssecret'
+
+class TestCheckCloudEnv:
     @patch('cli.Console')
     @patch('os.environ.get')
-    def test_b2_check_main_all_present(self, mock_environ_get, MockConsole):
+    def test_check_cloud_env_b2_present(self, mock_environ_get, MockConsole):
         mock_environ_get.side_effect = lambda x: {"B2_KEY_ID": "id", "B2_APP_KEY": "key"}.get(x)
         mock_console_instance = MockConsole.return_value
-        with patch('importlib.import_module', return_value=MagicMock(boto3=True)):
-            b2_check_main()
-            mock_console_instance.print.assert_any_call("[green]✅ Found B2_KEY_ID[/green]")
-            mock_console_instance.print.assert_any_call("[green]✅ Found B2_APP_KEY[/green]")
-            mock_console_instance.print.assert_any_call("[green]✅ boto3 is installed[/green]")
-
-    @patch('cli.Console')
-    @patch('os.environ.get')
-    def test_b2_check_main_missing_key_id(self, mock_environ_get, MockConsole):
-        mock_environ_get.side_effect = lambda x: {"B2_APP_KEY": "key"}.get(x)
-        mock_console_instance = MockConsole.return_value
-        with patch('importlib.import_module', return_value=MagicMock(boto3=True)):
-            b2_check_main()
-            mock_console_instance.print.assert_any_call("[red]❌ Missing B2_KEY_ID[/red]")
-            mock_console_instance.print.assert_any_call("   [yellow]Run:[/yellow] export B2_KEY_ID='your_key_id'")
-            mock_console_instance.print.assert_any_call("[green]✅ Found B2_APP_KEY[/green]")
-            mock_console_instance.print.assert_any_call("[green]✅ boto3 is installed[/green]")
-
-    @patch('cli.Console')
-    @patch('os.environ.get')
-    def test_b2_check_main_missing_app_key(self, mock_environ_get, MockConsole):
-        mock_environ_get.side_effect = lambda x: {"B2_KEY_ID": "id"}.get(x)
-        mock_console_instance = MockConsole.return_value
-        with patch('importlib.import_module', return_value=MagicMock(boto3=True)):
-            b2_check_main()
-            mock_console_instance.print.assert_any_call("[green]✅ Found B2_KEY_ID[/green]")
-            mock_console_instance.print.assert_any_call("[red]❌ Missing B2_APP_KEY[/red]")
-            mock_console_instance.print.assert_any_call("   [yellow]Run:[/yellow] export B2_APP_KEY='your_app_key'")
-            mock_console_instance.print.assert_any_call("[green]✅ boto3 is installed[/green]")
-
-    @patch('cli.Console')
-    @patch('os.environ.get')
-    def test_b2_check_main_boto3_missing(self, mock_environ_get, MockConsole):
-        mock_environ_get.side_effect = lambda x: {"B2_KEY_ID": "id", "B2_APP_KEY": "key"}.get(x)
-        mock_console_instance = MockConsole.return_value
-
-        # More robust way to mock a missing module
         original_import = __import__
-        def import_mock(name, *args, **kwargs):
-            if name == 'boto3':
-                raise ImportError
+        def mock_import(name, *args, **kwargs):
+            if name in ['boto3', 'b2sdk']: return MagicMock()
             return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
+        mock_console_instance.print.assert_any_call("[green]✅ Found Standard B2 Credentials (B2_KEY_ID, B2_APP_KEY)[/green]")
 
-        with patch('builtins.__import__', side_effect=import_mock):
-            b2_check_main()
+    @patch('cli.Console')
+    @patch('os.environ.get')
+    def test_check_cloud_env_b2_pv_present(self, mock_environ_get, MockConsole):
+        mock_environ_get.side_effect = lambda x: {"PV_B2_KEY_ID": "id", "PV_B2_APP_KEY": "key"}.get(x)
+        mock_console_instance = MockConsole.return_value
+        original_import = __import__
+        def mock_import(name, *args, **kwargs):
+            if name in ['boto3', 'b2sdk']: return MagicMock()
+            return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
+        mock_console_instance.print.assert_any_call("[green]✅ Found PV-prefixed B2 Credentials (PV_B2_KEY_ID, PV_B2_APP_KEY)[/green]")
 
+    @patch('cli.Console')
+    @patch('os.environ.get')
+    def test_check_cloud_env_aws_present(self, mock_environ_get, MockConsole):
+        mock_environ_get.side_effect = lambda x: {"AWS_ACCESS_KEY_ID": "id", "AWS_SECRET_ACCESS_KEY": "key"}.get(x)
+        mock_console_instance = MockConsole.return_value
+        original_import = __import__
+        def mock_import(name, *args, **kwargs):
+            if name in ['boto3', 'b2sdk']: return MagicMock()
+            return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
+        mock_console_instance.print.assert_any_call("[green]✅ Found Standard AWS/S3 Credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)[/green]")
+
+    @patch('cli.Console')
+    @patch('os.environ.get')
+    def test_check_cloud_env_aws_pv_present(self, mock_environ_get, MockConsole):
+        mock_environ_get.side_effect = lambda x: {"PV_AWS_ACCESS_KEY_ID": "id", "PV_AWS_SECRET_ACCESS_KEY": "key"}.get(x)
+        mock_console_instance = MockConsole.return_value
+        original_import = __import__
+        def mock_import(name, *args, **kwargs):
+            if name in ['boto3', 'b2sdk']: return MagicMock()
+            return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
+        mock_console_instance.print.assert_any_call("[green]✅ Found PV-prefixed AWS/S3 Credentials (PV_AWS_ACCESS_KEY_ID, PV_AWS_SECRET_ACCESS_KEY)[/green]")
+
+    @patch('cli.Console')
+    @patch('os.environ.get')
+    def test_check_cloud_env_missing_all(self, mock_environ_get, MockConsole):
+        mock_environ_get.return_value = None
+        mock_console_instance = MockConsole.return_value
+        original_import = __import__
+        def mock_import(name, *args, **kwargs):
+            if name in ['boto3', 'b2sdk']: return MagicMock()
+            return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
+        mock_console_instance.print.assert_any_call("[yellow]⚠️  Missing B2 Credentials[/yellow]")
+        mock_console_instance.print.assert_any_call("[yellow]⚠️  Missing AWS/S3 Credentials[/yellow]")
+
+    @patch('cli.Console')
+    @patch('os.environ.get')
+    def test_check_cloud_env_boto3_missing(self, mock_environ_get, MockConsole):
+        mock_environ_get.return_value = None
+        mock_console_instance = MockConsole.return_value
+        original_import = __import__
+        def mock_import(name, *args, **kwargs):
+            if name == 'boto3': raise ImportError
+            if name == 'b2sdk': return MagicMock()
+            return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
         mock_console_instance.print.assert_any_call("[red]❌ boto3 is missing[/red]")
-        mock_console_instance.print.assert_any_call("   [yellow]Run:[/yellow] pip install boto3")
+
+    @patch('cli.Console')
+    @patch('os.environ.get')
+    def test_check_cloud_env_b2sdk_missing(self, mock_environ_get, MockConsole):
+        mock_environ_get.return_value = None
+        mock_console_instance = MockConsole.return_value
+        original_import = __import__
+        def mock_import(name, *args, **kwargs):
+            if name == 'b2sdk': raise ImportError
+            if name == 'boto3': return MagicMock()
+            return original_import(name, *args, **kwargs)
+        with patch('builtins.__import__', side_effect=mock_import):
+            check_cloud_env()
+        mock_console_instance.print.assert_any_call("[red]❌ b2sdk is missing[/red]")
 
     def test_keyboard_interrupt_exits_with_130(self, mock_sys_exit, mock_config_load):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path']

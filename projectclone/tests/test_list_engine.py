@@ -69,11 +69,12 @@ class TestListCloudSnapshots:
     @patch('src.common.b2.B2Manager')
     def test_lists_cloud_snapshots(self, MockB2Manager, capsys):
         mock_manager = MockB2Manager.return_value
-        mock_manager.list_file_names.return_value = [
-            {'fileName': 'snapshots/proj1/snapshot_2023-01-01T10-00-00.json'},
-            {'fileName': 'snapshots/proj2/snapshot_2023-01-03T14-00-00.json'},
-            {'fileName': 'objects/hash1'},
-        ]
+        # Fix: Return a SET of strings, not a list of dicts
+        mock_manager.list_file_names.return_value = {
+            'snapshots/proj1/snapshot_2023-01-01T10-00-00.json',
+            'snapshots/proj2/snapshot_2023-01-03T14-00-00.json',
+            'objects/hash1',
+        }
         
         list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key")
         captured = capsys.readouterr()
@@ -85,7 +86,7 @@ class TestListCloudSnapshots:
     @patch('src.common.b2.B2Manager')
     def test_no_cloud_snapshots_found(self, MockB2Manager, capsys):
         mock_manager = MockB2Manager.return_value
-        mock_manager.list_file_names.return_value = []
+        mock_manager.list_file_names.return_value = set()
         
         list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key")
         captured = capsys.readouterr()
@@ -99,3 +100,8 @@ class TestListCloudSnapshots:
         
         assert "Error connecting to cloud backend" in captured.out
         assert "B2 Connection Error" in captured.out
+
+    @patch('src.common.s3.S3Manager')
+    def test_uses_s3_with_endpoint(self, MockS3Manager, capsys):
+        list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key", endpoint="http://s3.local")
+        MockS3Manager.assert_called_once()

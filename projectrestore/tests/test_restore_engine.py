@@ -64,7 +64,8 @@ def test_restore_traversal_attack(vault_structure, tmp_path, capsys):
     restore_engine.restore_snapshot(str(manifest_path), str(dest_path))
 
     captured = capsys.readouterr()
-    assert "Skipping traversal path" in captured.out
+    # Updated expectation: Unified error message
+    assert "Skipping unsafe path" in captured.out
     assert not (dest_path.parent / "outside.txt").exists()
 
 def test_restore_absolute_path_attack(vault_structure, tmp_path, capsys):
@@ -83,7 +84,8 @@ def test_restore_absolute_path_attack(vault_structure, tmp_path, capsys):
     restore_engine.restore_snapshot(str(manifest_path), str(dest_path))
 
     captured = capsys.readouterr()
-    assert "Skipping absolute path" in captured.out
+    # Updated expectation: Unified error message
+    assert "Skipping unsafe path" in captured.out
     assert not (tmp_path / "abs_file.txt").exists()
 
 def test_restore_anti_inception_dest_in_vault(vault_structure):

@@ -79,9 +79,9 @@ def list_local_snapshots(vault_path: str):
         console.print(table)
 
 
-def list_cloud_snapshots(bucket_name: str, key_id: str, app_key: str):
+def list_cloud_snapshots(bucket_name: str, key_id: str, app_key: str, endpoint: str = None):
     """
-    Connects to a B2 cloud bucket and lists all found snapshots.
+    Connects to a Cloud bucket (S3 or B2) and lists all found snapshots.
     """
     console = Console()
     table = Table(title=f"Cloud Snapshots in Bucket: '{bucket_name}'", show_header=True, header_style="bold magenta")
@@ -90,15 +90,22 @@ def list_cloud_snapshots(bucket_name: str, key_id: str, app_key: str):
     table.add_column("Manifest File", style="dim")
 
     try:
-        manager = b2.B2Manager(bucket_name, key_id, app_key)
+        # Logic: If an endpoint is provided OR we have AWS credentials in env, prefer S3.
+        # Otherwise, default to B2 Native.
+        if endpoint or os.environ.get("AWS_ACCESS_KEY_ID"):
+             from src.common import s3
+             manager = s3.S3Manager(key_id, app_key, bucket_name, endpoint)
+        else:
+             from src.common import b2
+             manager = b2.B2Manager(key_id, app_key, bucket_name)
+
         console.print("Fetching snapshot list from Cloud...")
         cloud_files = manager.list_file_names()
 
         snapshot_prefix = "snapshots/"
         projects = {}
 
-        for file_info in cloud_files:
-            file_name = file_info['fileName']
+        for file_name in cloud_files:
             if file_name.startswith(snapshot_prefix) and file_name.endswith(".json"):
                 parts = file_name.split('/')
                 # Expected structure: snapshots/<project_name>/<filename>.json

@@ -27,12 +27,13 @@ def local_vault(tmp_path):
 class TestSyncToCloud:
     def test_syncs_new_files_to_cloud(self, MockB2Manager, local_vault):
         mock_manager = MockB2Manager.return_value
+        # Correctly mock returning a SET of strings, as B2Manager.list_file_names returns Set[str]
         mock_manager.list_file_names.return_value = {
             "objects/hash1",
             "snapshots/proj1/snap1.json"
         }
         
-        sync_engine.sync_to_cloud(str(local_vault), "bucket", "endpoint", "id", "key")
+        sync_engine.sync_to_cloud(str(local_vault), "bucket", None, "id", "key")
         
         # Assert that upload_file was called for new files
         mock_manager.upload_file.assert_any_call(
@@ -51,7 +52,7 @@ class TestSyncToCloud:
         import shutil
         shutil.rmtree(local_vault / "objects")
         
-        sync_engine.sync_to_cloud(str(local_vault), "bucket", "endpoint", "id", "key")
+        sync_engine.sync_to_cloud(str(local_vault), "bucket", None, "id", "key")
         
         captured = capsys.readouterr()
         assert "No objects directory found" in captured.out
@@ -61,23 +62,29 @@ class TestSyncToCloud:
         import shutil
         shutil.rmtree(local_vault / "snapshots")
         
-        sync_engine.sync_to_cloud(str(local_vault), "bucket", "endpoint", "id", "key")
+        sync_engine.sync_to_cloud(str(local_vault), "bucket", None, "id", "key")
         
         captured = capsys.readouterr()
         assert "No snapshots directory found" in captured.out
+
+    @patch('src.common.s3.S3Manager')
+    def test_uses_s3_manager_with_endpoint(self, MockS3Manager, local_vault):
+        # Test that providing an endpoint triggers S3Manager usage
+        sync_engine.sync_to_cloud(str(local_vault), "bucket", "https://s3.example.com", "id", "key")
+        MockS3Manager.assert_called_once()
 
 @patch('src.common.b2.B2Manager')
 class TestSyncFromCloud:
     def test_downloads_missing_files_from_cloud(self, MockB2Manager, local_vault):
         mock_manager = MockB2Manager.return_value
-        mock_manager.list_file_names.return_value = [
+        mock_manager.list_file_names.return_value = {
             "objects/hash1", # Exists locally
             "objects/hash3", # New remote object
             "snapshots/proj1/snap1.json", # Exists locally
             "snapshots/proj1/snap3.json"  # New remote snapshot
-        ]
+        }
         
-        sync_engine.sync_from_cloud(str(local_vault), "bucket", "endpoint", "id", "key")
+        sync_engine.sync_from_cloud(str(local_vault), "bucket", None, "id", "key")
         
         # Assert that download_file was called for missing files
         mock_manager.download_file.assert_any_call(

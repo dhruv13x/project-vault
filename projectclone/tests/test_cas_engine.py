@@ -44,8 +44,16 @@ class TestBackupToVault:
         assert rel_path1 in data["files"]
         assert rel_path3 in data["files"]
         
-        hash1 = data["files"][rel_path1]
-        hash3 = data["files"][rel_path3]
+        entry1 = data["files"][rel_path1]
+        entry3 = data["files"][rel_path3]
+        
+        # Handle V2 Manifest (dict) vs V1 (string)
+        if isinstance(entry1, dict):
+            hash1 = entry1["hash"]
+            hash3 = entry3["hash"]
+        else:
+            hash1 = entry1
+            hash3 = entry3
         
         assert (vault_dir / "objects" / hash1).exists()
         assert (vault_dir / "objects" / hash3).exists()
@@ -117,4 +125,3 @@ class TestBackupToVault:
             assert "Error processing file1.txt: Disk full" in captured.out or \
                    "Error processing file2.log: Disk full" in captured.out or \
                    "Error processing subdir/file3.txt: Disk full" in captured.out
-
