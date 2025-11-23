@@ -8,6 +8,11 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import tempfile
 import shutil
+import sys
+
+# Fix import path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from projectrestore.modules import locking
 
 
@@ -144,13 +149,21 @@ class TestLocking(unittest.TestCase):
 
         mock_stat.side_effect = stat_side_effect
 
-        with patch.object(locking.LOG, "error") as mock_log:
-            with self.assertRaises(SystemExit) as cm:
-                locking.create_pid_lock(self.lockfile, stale_seconds=3600)
-            self.assertEqual(cm.exception.code, 3)
-            mock_log.assert_called_with(
-                "Failed to acquire lockfile after cleanup. Exiting."
-            )
+        # Mock open to raise FileExistsError to simulate failure to acquire after cleanup
+        original_open = os.open
+        def side_effect_open(path, flags, *args):
+            if str(path) == str(self.lockfile):
+                raise FileExistsError
+            return original_open(path, flags, *args)
+
+        with patch("os.open", side_effect=side_effect_open):
+            with patch.object(locking.LOG, "error") as mock_log:
+                with self.assertRaises(SystemExit) as cm:
+                    locking.create_pid_lock(self.lockfile, stale_seconds=3600)
+                self.assertEqual(cm.exception.code, 3)
+                mock_log.assert_called_with(
+                    "Failed to acquire lockfile after cleanup. Exiting."
+                )
 
     @patch("os.stat")
     def test_unreadable_recent(self, mock_stat):
@@ -201,15 +214,74 @@ class TestLocking(unittest.TestCase):
         locking.create_pid_lock(self.lockfile, stale_seconds=stale_seconds)
         self.assertTrue(self.lockfile.exists())
         self.assertEqual(self.lockfile.read_text().strip(), str(os.getpid()))
+        # stat failed, so it used stale_seconds + 1, so it removed it
         mock_log.assert_called_once_with(
             "Removed stale lockfile (pid %s, age %ds). Retrying.",
             12345,
             stale_seconds + 1,
         )
 
-    @patch("pathlib.Path.read_text", side_effect=OSError("read fail"))
-    def test_lockfile_read_fail(self, mock_read):
+    def test_lockfile_read_fail(self):
         self.lockfile.touch()
-        with self.assertRaises(SystemExit) as cm:
-            locking.create_pid_lock(self.lockfile)
-        self.assertEqual(cm.exception.code, 3)
+
+        with patch.object(Path, "read_text", side_effect=OSError("read fail")):
+            # Mock mkdir to avoid filesystem issues
+            with patch.object(Path, "mkdir"):
+                # Mock stat to ensure it doesn't think it's stale yet (recent)
+                with patch("os.stat") as mock_stat:
+                    file_mock = MagicMock(st_mtime=time.time(), st_mode=stat.S_IFREG | 0o644)
+                    mock_stat.return_value = file_mock
+
+                    # Should behave as unreadable recent
+                    with self.assertRaises(SystemExit) as cm:
+                        locking.create_pid_lock(self.lockfile)
+                    self.assertEqual(cm.exception.code, 3)
+
+    def test_is_process_alive(self):
+        with patch("os.kill") as mock_kill:
+            mock_kill.return_value = None
+            self.assertTrue(locking._is_process_alive(123))
+
+            mock_kill.side_effect = ProcessLookupError
+            self.assertFalse(locking._is_process_alive(123))
+
+            mock_kill.side_effect = PermissionError
+            self.assertTrue(locking._is_process_alive(123))
+
+            mock_kill.side_effect = OSError
+            self.assertTrue(locking._is_process_alive(123))
+
+    @patch("projectrestore.modules.locking._is_process_alive")
+    @patch("os.stat")
+    def test_stale_lock_race_condition(self, mock_stat, mock_alive):
+        """Test scenario where stale lock removal succeeds but re-acquire fails due to race."""
+        mock_alive.return_value = False
+        self.lockfile.write_text("12345")
+        old_mtime = time.time() - 4000
+
+        # Mock stat to look stale
+        dir_mock = MagicMock(st_mtime=time.time(), st_mode=stat.S_IFDIR | 0o755)
+        file_mock = MagicMock(st_mtime=old_mtime, st_mode=stat.S_IFREG | 0o644)
+        def stat_side_effect(*args, **kwargs):
+            if str(self.lockfile) in str(args[0]):
+                return file_mock
+            return dir_mock
+        mock_stat.side_effect = stat_side_effect
+
+        # Mock open to raise FileExistsError on all calls
+        # First acquire fails (exists) -> goes to stale check
+        # Stale check removes it (unlink mocked or real)
+        # Second acquire fails (simulated race) -> raises SystemExit(3)
+
+        original_open = os.open
+        def side_effect_open(path, flags, *args):
+            if str(path) == str(self.lockfile):
+                raise FileExistsError
+            return original_open(path, flags, *args)
+
+        with patch("os.open", side_effect=side_effect_open):
+            # Ensure unlink happens successfully
+            with patch("pathlib.Path.unlink"):
+                with self.assertRaises(SystemExit) as cm:
+                    locking.create_pid_lock(self.lockfile, stale_seconds=3600)
+                self.assertEqual(cm.exception.code, 3)

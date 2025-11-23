@@ -3,19 +3,19 @@
 
 """
 test_projectrestore.cli.py - Unit and integration tests for projectrestore.cli.py
-
-Run with: python -m unittest discover . (or pytest if available, but using stdlib unittest)
-
-Requires: The projectrestore.cli.py script in the same directory.
-Tests focus on core functions; file-system heavy tests use temp dirs.
-Mocking used for PID/signal parts to avoid flakiness.
 """
 
 import shutil
 import tempfile
+import signal
+import os
+import sys
 from pathlib import Path
 import unittest
 from unittest import mock
+
+# Fix import path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from projectrestore import cli
 
@@ -122,6 +122,61 @@ class TestCLIIntegration(unittest.TestCase):
             rc = cli.main()
         self.assertEqual(rc, 1)
 
+    def test_graceful_shutdown_signals(self):
+        """Test that GracefulShutdown registers signal handlers."""
+        with mock.patch("signal.signal") as mock_signal:
+            shutdown = cli.GracefulShutdown()
+            shutdown.install()
+
+            # Verify handlers registered for SIGINT and SIGTERM.
+            # The handler is 'shutdown._handler', so we can check if it was called with that.
+            calls = [
+                mock.call(signal.SIGINT, shutdown._handler),
+                mock.call(signal.SIGTERM, shutdown._handler)
+            ]
+            mock_signal.assert_has_calls(calls, any_order=True)
+
+    @mock.patch("projectrestore.cli.create_pid_lock")
+    def test_pidfile_locking_failure(self, mock_create_lock):
+        """Simulate pidfile locking failure (another instance running)."""
+        # Simulate SystemExit raised by create_pid_lock when locked
+        mock_create_lock.side_effect = SystemExit(3)
+
+        with mock.patch(
+            "projectrestore.cli.sys.argv",
+            ["script.py", "--backup-dir", str(self.backup_dir)],
+        ):
+            rc = cli.main()
+
+        self.assertEqual(rc, 3)
+        mock_create_lock.assert_called_once()
+
+    @mock.patch("projectrestore.cli.find_latest_backup")
+    @mock.patch("projectrestore.cli.safe_extract_atomic")
+    def test_invalid_archive_handling(self, mock_extract, mock_find):
+        """Run against a corrupted .tar.gz file (simulated by exception)."""
+        mock_find.return_value = self.tar_path
+        # Simulate extraction failure
+        mock_extract.side_effect = ValueError("Invalid tar header")
+
+        with mock.patch(
+            "projectrestore.cli.sys.argv",
+            ["script.py", "--backup-dir", str(self.backup_dir)],
+        ):
+            rc = cli.main()
+
+        self.assertEqual(rc, 1) # General failure
+        mock_extract.assert_called_once()
+
+    def test_vault_restore_subcommand(self):
+        """Test vault-restore subcommand dispatch."""
+        with mock.patch("projectrestore.restore_engine.restore_snapshot") as mock_restore, \
+             mock.patch("projectrestore.cli.sys.argv", ["script.py", "vault-restore", "manifest.json", "dest_dir"]), \
+             mock.patch("projectrestore.cli.print_logo"):
+
+            rc = cli.main()
+            self.assertEqual(rc, 0)
+            mock_restore.assert_called_once_with(os.path.abspath("manifest.json"), os.path.abspath("dest_dir"))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
