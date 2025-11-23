@@ -29,9 +29,38 @@ packages = ["src", "src.common"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "--cov=src --cov=projectclone --cov=projectrestore --cov-report=term-missing:skip-covered"
 testpaths = [
     "tests",
     "projectclone/tests",
     "projectrestore/tests",
 ]
+
+addopts = [
+    "--timeout=10",
+    "--durations=10",
+    "--log-cli-level=INFO",
+    "-v",
+    "-ra",
+    "--tb=short",
+    "--showlocals",
+    "--strict-markers",
+    "--cov=src",
+    "--cov=projectclone",
+    "--cov=projectrestore",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=97",
+]
+
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.coverage.run]
+branch = true
+source = [
+    "src",
+    "projectclone",
+    "projectrestore",
+]
+
+[tool.coverage.report]
+show_missing = true
