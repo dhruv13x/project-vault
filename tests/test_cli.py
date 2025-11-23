@@ -152,6 +152,69 @@ class TestMainCli:
             main()
             mock_b2_check.assert_called_once()
             mock_sys_exit.assert_not_called() # b2_check_main doesn't exit directly
+
+    def test_sync_command_missing_env_vars(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
+        sys.argv = ['pv', 'sync', '/vault', '--bucket', 'b', '--endpoint', 'e']
+        # Mock sys.exit to raise SystemExit so execution stops
+        mock_sys_exit.side_effect = SystemExit(1)
+
+        with patch('os.environ.get', return_value=None):
+            try:
+                main()
+            except SystemExit:
+                pass
+
+            output = capture_stdout()
+            assert "Error: B2_KEY_ID and B2_APP_KEY environment variables must be set" in output
+            mock_sys_exit.assert_called_with(1)
+            # Verify execution did not proceed to sync_engine
+            mock_sync_engine.sync_to_cloud.assert_not_called()
+
+    def test_sync_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+        sys.argv = ['pv', 'sync', '/vault', '--bucket', 'b', '--endpoint', 'e']
+        with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
+            main()
+            mock_sync_engine.sync_to_cloud.assert_called_once_with(
+                os.path.abspath('/vault'), 'b', 'e', 'val', 'val'
+            )
+
+    def test_pull_command_invalid_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
+        sys.argv = ['pv', 'pull', '/vault'] # missing bucket/endpoint
+        # Mock sys.exit to raise SystemExit so execution stops
+        mock_sys_exit.side_effect = SystemExit(1)
+
+        try:
+            main()
+        except SystemExit:
+            pass
+
+        output = capture_stdout()
+        assert "Error: Bucket/Endpoint must be specified in CLI or pyproject.toml" in output
+        mock_sys_exit.assert_called_with(1)
+        mock_sync_engine.sync_from_cloud.assert_not_called()
+
+    def test_pull_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+        sys.argv = ['pv', 'pull', '/vault', '--bucket', 'b', '--endpoint', 'e']
+        with patch('os.environ.get', side_effect=lambda k: 'val' if k in ['B2_KEY_ID', 'B2_APP_KEY'] else None):
+            main()
+            mock_sync_engine.sync_from_cloud.assert_called_once_with(
+                os.path.abspath('/vault'), 'b', 'e', 'val', 'val'
+            )
+
+    def test_init_pyproject(self, mock_sys_exit, capture_stdout, mock_config_load):
+        sys.argv = ['pv', 'init', '--pyproject']
+        main()
+        output = capture_stdout()
+        assert "[tool.project-vault]" in output
+        assert 'bucket = "my-project-backups"' in output
+
+    def test_check_integrity(self, mock_sys_exit, mock_integrity_engine, mock_config_load):
+        sys.argv = ['pv', 'check-integrity', '/vault']
+        mock_integrity_engine.verify_vault.return_value = True
+        main()
+        mock_integrity_engine.verify_vault.assert_called_once_with(os.path.abspath('/vault'))
+        mock_sys_exit.assert_not_called()
+
             
 class TestB2CheckMain:
     @patch('cli.Console')

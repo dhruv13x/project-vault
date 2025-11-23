@@ -113,5 +113,8 @@ class TestBackupToVault:
                 cas_engine.backup_to_vault(str(source_dir), str(vault_dir))
             
             captured = capsys.readouterr()
-            assert "Error processing file1.txt: Disk full" in captured.out
+            # The order of processing is not guaranteed, check for either file
+            assert "Error processing file1.txt: Disk full" in captured.out or \
+                   "Error processing file2.log: Disk full" in captured.out or \
+                   "Error processing subdir/file3.txt: Disk full" in captured.out
 
