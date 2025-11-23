@@ -143,6 +143,13 @@ Goal: Make sure that what you store and ship is safe.
 - [ ] Hash chains or manifest signatures.
 - [ ] `pv check-integrity --deep`: Verify entire history.
 
+### 4.4. Secret Manager Integration
+
+- [ ] **Doppler & Infisical Support:**
+    - Automatically fetch cloud credentials (AWS/B2 keys) and other configurations from a detected Doppler or Infisical environment.
+    - Eliminate the need for local `.env` files or exporting secrets in shell profiles.
+    - Add as an optional install: `pip install project-vault[doppler]`.
+
 ---
 
 ## Level 5 — GOD Level (Reality-Bending Project Control)
