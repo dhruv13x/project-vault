@@ -66,9 +66,40 @@ class TestRestoreExtended:
         import time
         os.utime(lockfile, (time.time()-7200, time.time()-7200))
 
-        with patch("psutil.pid_exists", return_value=False):
-            locking.create_pid_lock(lockfile, stale_seconds=3600)
-            assert lockfile.read_text().strip() == str(os.getpid())
+        # We mock projectrestore.modules.locking.psutil instead of just psutil
+        # assuming the module imports it.
+        # However, checking the error, it says ModuleNotFoundError: No module named 'psutil'
+        # This means psutil is not installed in the environment, so we cannot even patch it if we try to import it to patch it.
+        # We need to use patch.dict on sys.modules to mock psutil existence first, OR patch where it is used.
+
+        # If locking.py does `import psutil`, then we need to mock it in sys.modules before locking is imported?
+        # But locking is already imported.
+
+        # The error in the test log showed:
+        #   File "projectrestore/tests/test_restore_extended.py", line 69, in test_pid_lock_stale_overwrite
+        #     with patch("psutil.pid_exists", return_value=False):
+        # ...
+        #   ModuleNotFoundError: No module named 'psutil'
+
+        # This happens because patch attempts to import psutil to verify the attribute exists or to patch it.
+
+        # Since psutil is an optional dependency (or missing dependency), we should probably mock it completely.
+
+        mock_psutil = MagicMock()
+        mock_psutil.pid_exists.return_value = False
+
+        with patch.dict("sys.modules", {"psutil": mock_psutil}):
+             # We might need to reload locking module if it imports psutil at top level
+             # checking locking.py:
+             # try: import psutil; except ImportError: psutil = None
+
+             # If it was already imported as None, we need to force it to see our mock.
+             import importlib
+             import projectrestore.modules.locking
+             importlib.reload(projectrestore.modules.locking)
+
+             projectrestore.modules.locking.create_pid_lock(lockfile, stale_seconds=3600)
+             assert lockfile.read_text().strip() == str(os.getpid())
 
     # --- Engine/Logic Tests ---
 
