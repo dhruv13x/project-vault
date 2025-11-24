@@ -350,6 +350,16 @@ class RichHelpAction(argparse.Action):
 
 
 def main():
+    try:
+        _real_main()
+    except Exception as e:
+        console.print(f"[error]Error: {e}[/error]")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[warning]Interrupted.[/warning]")
+        sys.exit(130)
+
+def _real_main():
     # 1. Inject Doppler Secrets (Environment Override)
     inject_doppler_secrets()
 
@@ -507,187 +517,176 @@ def main():
         sys.exit(0)
 
     # Dispatch logic
-    try:
-        # The clone/restore commands are handled by the special block at the top.
-        # This section handles the direct commands.
-        if args.command == "vault":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
-            
-            source_abs = resolve_path(args.source)
-            project_name = args.name or os.path.basename(source_abs)
-            
-            from projectclone import cas_engine
-            cas_engine.backup_to_vault(source_abs, resolve_path(args.vault_path), project_name=project_name)
+    # The clone/restore commands are handled by the special block at the top.
+    # This section handles the direct commands.
+    if args.command == "vault":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
 
-        elif args.command == "vault-restore":
-            if not args.dest:
-                console.print("[error]Error: Destination directory must be specified in CLI or 'restore_path' in pv.toml[/error]")
-                sys.exit(1)
-            from projectrestore import restore_engine
-            restore_engine.restore_snapshot(resolve_path(args.manifest), resolve_path(args.dest))
-            
-        elif args.command == "init":
-            if args.pyproject:
-                print("\n[tool.project-vault]")
-                print('bucket = "my-project-backups"')
-                print('endpoint = "https://s3.eu-central-003.backblazeb2.com"')
-                print('# vault_path = "./my_vault"\n')
-            else:
-                config.generate_init_file("pv.toml")
+        source_abs = resolve_path(args.source)
+        project_name = args.name or os.path.basename(source_abs)
 
-        elif args.command == "status":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
+        from projectclone import cas_engine
+        cas_engine.backup_to_vault(source_abs, resolve_path(args.vault_path), project_name=project_name)
 
-            from projectclone import status_engine
-            
-            # Prepare cloud config if bucket is present
-            cloud_config = {}
-            if args.bucket:
-                key_id, app_key = get_credentials()
-                cloud_config = {
-                    "bucket": args.bucket,
-                    "endpoint": args.endpoint,
-                    "key_id": key_id,
-                    "app_key": app_key
-                }
-            
-            status_engine.show_status(
-                resolve_path(args.source),
-                resolve_path(args.vault_path),
-                cloud_config
-            )
+    elif args.command == "vault-restore":
+        if not args.dest:
+            console.print("[error]Error: Destination directory must be specified in CLI or 'restore_path' in pv.toml[/error]")
+            sys.exit(1)
+        from projectrestore import restore_engine
+        restore_engine.restore_snapshot(resolve_path(args.manifest), resolve_path(args.dest))
 
-        elif args.command == "diff":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
-            
-            source_root = os.getcwd()
-            
-            from projectclone import diff_engine
-            diff_engine.show_diff(
-                source_root,
-                resolve_path(args.vault_path),
-                resolve_path(args.file)
-            )
+    elif args.command == "init":
+        if args.pyproject:
+            print("\n[tool.project-vault]")
+            print('bucket = "my-project-backups"')
+            print('endpoint = "https://s3.eu-central-003.backblazeb2.com"')
+            print('# vault_path = "./my_vault"\n')
+        else:
+            config.generate_init_file("pv.toml")
 
-        elif args.command == "checkout":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
-            
-            source_root = os.getcwd()
-            
-            from projectclone import checkout_engine
-            checkout_engine.checkout_file(
-                source_root,
-                resolve_path(args.vault_path),
-                resolve_path(args.file),
-                force=args.force
-            )
+    elif args.command == "status":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
 
-        elif args.command == "list":
-            from projectclone import list_engine
-            if args.cloud:
-                if not args.bucket:
-                    console.print("[error]Error: --bucket must be specified in CLI or pv.toml for cloud listing.[/error]")
-                    sys.exit(1)
-                
-                key_id, app_key = get_credentials()
+        from projectclone import status_engine
 
-                if not key_id or not app_key:
-                    console.print("[error]Error: Cloud credentials missing.[/error]")
-                    console.print("Set PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (preferred) or standard AWS_.../B2_... variables.")
-                    sys.exit(1)
-                
-                list_engine.list_cloud_snapshots(args.bucket, key_id, app_key, getattr(args, 'endpoint', None))
-            else:
-                if not args.vault_path:
-                    console.print("[error]Error: vault_path must be specified in CLI or pv.toml for local listing.[/error]")
-                    sys.exit(1)
-                list_engine.list_local_snapshots(resolve_path(args.vault_path))
+        # Prepare cloud config if bucket is present
+        cloud_config = {}
+        if args.bucket:
+            key_id, app_key = get_credentials()
+            cloud_config = {
+                "bucket": args.bucket,
+                "endpoint": args.endpoint,
+                "key_id": key_id,
+                "app_key": app_key
+            }
 
-        elif args.command == "push":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
+        status_engine.show_status(
+            resolve_path(args.source),
+            resolve_path(args.vault_path),
+            cloud_config
+        )
+
+    elif args.command == "diff":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
+
+        source_root = os.getcwd()
+
+        from projectclone import diff_engine
+        diff_engine.show_diff(
+            source_root,
+            resolve_path(args.vault_path),
+            resolve_path(args.file)
+        )
+
+    elif args.command == "checkout":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
+
+        source_root = os.getcwd()
+
+        from projectclone import checkout_engine
+        checkout_engine.checkout_file(
+            source_root,
+            resolve_path(args.vault_path),
+            resolve_path(args.file),
+            force=args.force
+        )
+
+    elif args.command == "list":
+        from projectclone import list_engine
+        if args.cloud:
             if not args.bucket:
-                console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
+                console.print("[error]Error: --bucket must be specified in CLI or pv.toml for cloud listing.[/error]")
                 sys.exit(1)
             
             key_id, app_key = get_credentials()
-            
+
             if not key_id or not app_key:
                 console.print("[error]Error: Cloud credentials missing.[/error]")
-                console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
+                console.print("Set PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (preferred) or standard AWS_.../B2_... variables.")
                 sys.exit(1)
-                
-            from projectclone import sync_engine
-            sync_engine.sync_to_cloud(
-                resolve_path(args.vault_path),
-                args.bucket,
-                args.endpoint,
-                key_id,
-                app_key,
-                dry_run=args.dry_run
-            )
-
-        elif args.command == "pull":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
-            if not args.bucket:
-                console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
-                sys.exit(1)
-
-            key_id, app_key = get_credentials()
             
-            if not key_id or not app_key:
-                console.print("[error]Error: Cloud credentials missing.[/error]")
-                console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
-                sys.exit(1)
-                
-            from projectclone import sync_engine
-            sync_engine.sync_from_cloud(
-                resolve_path(args.vault_path),
-                args.bucket,
-                args.endpoint,
-                key_id,
-                app_key,
-                dry_run=args.dry_run
-            )
-            
-        elif args.command == "check-integrity":
+            list_engine.list_cloud_snapshots(args.bucket, key_id, app_key, getattr(args, 'endpoint', None))
+        else:
             if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml for local listing.[/error]")
                 sys.exit(1)
-            from projectclone import integrity_engine
-            if not integrity_engine.verify_vault(resolve_path(args.vault_path)):
-                sys.exit(1)
-                
-        elif args.command == "gc":
-            if not args.vault_path:
-                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-                sys.exit(1)
-            from projectclone import gc_engine
-            gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
+            list_engine.list_local_snapshots(resolve_path(args.vault_path))
 
-        elif args.command == "check-env":
-            check_cloud_env()
+    elif args.command == "push":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
+        if not args.bucket:
+            console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
+            sys.exit(1)
 
-    except Exception as e:
-        console.print(f"[error]Error executing command '{args.command}': {e}[/error]")
-        # For debugging, re-raise in a verbose mode
-        # import traceback
-        # traceback.print_exc()
-        sys.exit(1)
-    except KeyboardInterrupt:
-        console.print("\n[warning]Interrupted.[/warning]")
-        sys.exit(130)
+        key_id, app_key = get_credentials()
+
+        if not key_id or not app_key:
+            console.print("[error]Error: Cloud credentials missing.[/error]")
+            console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
+            sys.exit(1)
+
+        from projectclone import sync_engine
+        sync_engine.sync_to_cloud(
+            resolve_path(args.vault_path),
+            args.bucket,
+            args.endpoint,
+            key_id,
+            app_key,
+            dry_run=args.dry_run
+        )
+
+    elif args.command == "pull":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
+        if not args.bucket:
+            console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
+            sys.exit(1)
+
+        key_id, app_key = get_credentials()
+
+        if not key_id or not app_key:
+            console.print("[error]Error: Cloud credentials missing.[/error]")
+            console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
+            sys.exit(1)
+
+        from projectclone import sync_engine
+        sync_engine.sync_from_cloud(
+            resolve_path(args.vault_path),
+            args.bucket,
+            args.endpoint,
+            key_id,
+            app_key,
+            dry_run=args.dry_run
+        )
+
+    elif args.command == "check-integrity":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
+        from projectclone import integrity_engine
+        if not integrity_engine.verify_vault(resolve_path(args.vault_path)):
+            sys.exit(1)
+
+    elif args.command == "gc":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
+            sys.exit(1)
+        from projectclone import gc_engine
+        gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
+
+    elif args.command == "check-env":
+        check_cloud_env()
 
 if __name__ == "__main__":
     main()

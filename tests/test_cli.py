@@ -702,5 +702,5 @@ class TestCheckCloudEnv:
         with patch('projectclone.cas_engine.backup_to_vault', side_effect=ValueError("Test error")):
             main()
             output = capture_stdout()
-            assert "Error executing command 'vault': Test error" in output
+            assert "Error: Test error" in output
             mock_sys_exit.assert_called_once_with(1)
