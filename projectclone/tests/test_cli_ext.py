@@ -121,14 +121,14 @@ class TestCliExt:
         mock_disk_usage.return_value = (1000, 990, 10)
         
         # Mock walk_stats to return large size (100 bytes)
-        with patch("projectclone.cli.walk_stats", return_value=(5, 100)):
-             monkeypatch.setattr("sys.argv", ["projectclone", "note", "--dest", str(temp_dest), "--yes"])
-             # Run main
-             from projectclone.cli import main
-             try:
-                 main()
-             except SystemExit:
-                 pass
+        # Also mock copy_tree_atomic so it doesn't actually try to copy
+        with patch("projectclone.cli.walk_stats", return_value=(5, 100)), \
+             patch("projectclone.cli.copy_tree_atomic"):
+             
+             monkeypatch.setattr(sys, "argv", ["projectclone", "note", "--dest", str(temp_dest), "--yes"])
+             monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+             
+             main()
 
         captured = capsys.readouterr()
         assert "WARNING: estimated backup size exceeds free space" in captured.out
@@ -137,12 +137,13 @@ class TestCliExt:
     def test_main_statvfs_error(self, mock_disk_usage, temp_src, temp_dest, capsys, monkeypatch):
         mock_disk_usage.side_effect = OSError("Stat fail")
         
-        with patch("projectclone.cli.walk_stats", return_value=(5, 100)):
-             monkeypatch.setattr("sys.argv", ["projectclone", "note", "--dest", str(temp_dest), "--yes"])
-             try:
-                 main()
-             except SystemExit:
-                 pass
+        with patch("projectclone.cli.walk_stats", return_value=(5, 100)), \
+             patch("projectclone.cli.copy_tree_atomic"):
+             
+             monkeypatch.setattr(sys, "argv", ["projectclone", "note", "--dest", str(temp_dest), "--yes"])
+             monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+             
+             main()
 
         captured = capsys.readouterr()
         # Should print "Could not determine destination free space"
@@ -184,13 +185,8 @@ class TestCliExt:
         mock_move.side_effect = [None, OSError("SHA move failed")]
 
         main()
-        # Should not exit with error, just log/print
-        # But currently logic catches exception inside the block and logs it, continuing?
-        # Let's check code: 
-        # try: atomic_move(sha_src, sha_dst) except Exception as e: log...
         
         captured = capsys.readouterr()
-        # If logic handles it gracefully, we see success message
         assert "Archive created" in captured.out
 
     @patch("projectclone.cleanup.cleanup_state.unregister_tmp_file")
