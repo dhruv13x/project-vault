@@ -198,7 +198,7 @@ def main():
     # --- Vault Restore Command ---
     vault_restore_parser = subparsers.add_parser("vault-restore", help="Restore from Vault Manifest")
     vault_restore_parser.add_argument("manifest", help="Path to manifest.json")
-    vault_restore_parser.add_argument("dest", help="Destination directory")
+    vault_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"), help="Destination directory")
 
     # --- Push Command ---
     push_parser = subparsers.add_parser("push", help="Push Vault to Cloud Storage (S3/B2)")
@@ -288,6 +288,9 @@ def main():
             cas_engine.backup_to_vault(source_abs, resolve_path(args.vault_path), project_name=project_name)
 
         elif args.command == "vault-restore":
+            if not args.dest:
+                print("Error: Destination directory must be specified in CLI or 'restore_path' in pv.toml")
+                sys.exit(1)
             from projectrestore import restore_engine
             restore_engine.restore_snapshot(resolve_path(args.manifest), resolve_path(args.dest))
             

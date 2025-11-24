@@ -65,6 +65,7 @@ endpoint = "https://s3.eu-central-003.backblazeb2.com"
 # --- Default Paths (Optional) ---
 # You can uncomment these to set default vault locations
 # vault_path = "./my_vault"
+# restore_path = "./restored_project"
 """
     try:
         with open(target_path, "w", encoding="utf-8") as f:
