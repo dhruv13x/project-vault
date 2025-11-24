@@ -19,20 +19,20 @@ class TestCliExtended:
         captured = capsys.readouterr()
         assert "Could not create destination directory" in captured.out
 
-    def test_cli_statvfs_fail_log_swallow(self, tmp_path, capsys):
-        mock_file = MagicMock()
-        mock_file.write.side_effect = Exception("Log fail")
-
-        with patch("projectclone.cli.walk_stats", return_value=(10, 100)):
-            with patch("os.statvfs", side_effect=Exception("Stat fail")):
-                with patch("pathlib.Path.open", return_value=mock_file):
-                    with patch.object(sys, 'argv', ['create_backup.py', 'note', '--dest', str(tmp_path), '--yes']):
-                        with patch("projectclone.cli.copy_tree_atomic"):
-                            cli.main()
-
-        captured = capsys.readouterr()
-        assert "Could not determine" not in captured.out
-
+        def test_cli_statvfs_fail_log_swallow(self, tmp_path, capsys):
+            mock_file = MagicMock()
+            mock_file.write.side_effect = Exception("Log fail")
+            
+            with patch("projectclone.cli.walk_stats", return_value=(10, 100)):
+                with patch("shutil.disk_usage", side_effect=Exception("Stat fail")):
+                    with patch("pathlib.Path.open", return_value=mock_file):
+                        with patch.object(sys, 'argv', ['create_backup.py', 'note', '--dest', str(tmp_path), '--yes']):
+                            with patch("projectclone.cli.copy_tree_atomic"):
+                                cli.main()
+                                
+            captured = capsys.readouterr()
+            # We changed behavior to print the error
+            assert "Could not determine" in captured.out
     def test_cli_archive_move_fail(self, tmp_path, capsys):
         with patch.object(sys, 'argv', ['create_backup.py', 'note', '--dest', str(tmp_path), '--archive', '--yes']):
             with patch("projectclone.cli.create_archive"):
