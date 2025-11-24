@@ -1,67 +1,64 @@
-name: 🚀 Publish Monorepo to PyPI
+name: 🚀 Publish to PyPI (Trusted Publishing)
 
 on:
   push:
     tags:
-      - "v*.*.*"  # Trigger only on semantic version tags (e.g., v1.0.0)
+      - "v*.*.*"  # Trigger only on semantic version tags (e.g., v1.2.3)
 
 permissions:
   contents: read
   id-token: write  # Required for PyPI OIDC Trusted Publishing
 
 jobs:
-  test-and-publish:
-    name: Build & Publish All Packages
+  build-and-publish:
+    name: Build & Publish
     runs-on: ubuntu-latest
-    environment: pypi 
+    environment: pypi # Assumes a GitHub environment named 'pypi' is configured
 
     steps:
       - name: 🧩 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python 3.10
+      - name: 🐍 Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.13"
 
-      - name: 📦 Install build tools
+      - name: 📦 Install build, test, and dev tools
         run: |
           python -m pip install --upgrade pip
-          pip install build twine pytest pytest-cov
+          # Install core build tools
+          pip install build twine
+          # Install project-specific development dependencies
+          # This assumes 'dev' extra is defined in pyproject.toml and includes
+          # pytest, pytest-cov, ruff, black, mypy, etc.
+          pip install .[dev]
+          # Install codecov-action dependency if not already in [dev]
+          pip install codecov
 
-      # --- Testing Phase ---
-      # We install dependencies manually since we are in a monorepo pre-publish state
-      - name: 🧪 Run Tests
-        run: |
-          # Install local deps in editable mode for testing
-          pip install -e ./projectclone
-          pip install -e ./projectrestore
-          pip install -e .
-          
-          # Run the full test suite
-          pytest
+      - name: 🧪 Run tests & generate coverage
+        # This command assumes pytest is used and the main package code is in 'src'.
+        # If a project's main package is named differently (e.g., 'src/my_tool_name'),
+        # '--cov=src' should still work if the package is directly under 'src'.
+        run: pytest --cov=src --cov-report=xml
 
-      # --- Build Phase ---
-      # We build all 3 packages into the same 'dist/' directory
-      
-      - name: ⚙️ Build projectclone
-        run: python -m build projectclone/ --outdir dist/
+      - name: 📊 Upload coverage reports to Codecov
+        # Requires a CODECOV_TOKEN secret to be configured in the repository settings.
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          verbose: true
+          fail_ci_if_error: true
 
-      - name: ⚙️ Build projectrestore
-        run: python -m build projectrestore/ --outdir dist/
+      - name: ⚙️ Build distribution packages
+        run: python -m build
 
-      - name: ⚙️ Build project-vault (Root)
-        run: python -m build . --outdir dist/
+      - name: ✅ Verify distribution
+        run: twine check dist/*
 
-      - name: ✅ Check Artifacts
-        run: |
-          ls -l dist/
-          twine check dist/*
-
-      # --- Publish Phase ---
-      - name: 🚀 Publish to PyPI
+      - name: 🚀 Publish to PyPI (via OIDC)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: dist/
           verbose: true
-          skip-existing: true # Allow partial updates if one package failed previously
+          skip-existing: false  # Fail if version already exists (prevents accidental overwrites)

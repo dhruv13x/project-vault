@@ -9,4 +9,5 @@ endpoint = "https://s3.eu-central-003.backblazeb2.com"
 
 # --- Default Paths (Optional) ---
 # You can uncomment these to set default vault locations
-vault_path = "/sdcard/my_custom_location"  # <-- The Global Default
+# vault_path = "./my_vault"
+# restore_path = "./restored_project"
