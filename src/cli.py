@@ -3,6 +3,9 @@ import sys
 import os
 import argparse
 import importlib
+import base64
+import json
+import urllib.request
 from rich.console import Console
 import pdb # Added for debugging
 
@@ -40,6 +43,45 @@ def resolve_path(path_str):
     if not path_str:
         return path_str
     return os.path.abspath(os.path.expanduser(os.path.expandvars(path_str)))
+
+
+def inject_doppler_secrets():
+    """
+    Checks for DOPPLER_TOKEN and fetches secrets from Doppler API if present.
+    Injects them into os.environ.
+    """
+    token = os.environ.get("DOPPLER_TOKEN")
+    if not token:
+        return
+
+    console = Console()
+    console.print("[bold cyan]🔮 Doppler Token detected. Fetching secrets...[/bold cyan]")
+
+    url = "https://api.doppler.com/v3/configs/config/secrets/download?format=json"
+    req = urllib.request.Request(url)
+
+    # Basic Auth: username=token, password=""
+    auth_str = f"{token}:"
+    b64_auth = base64.b64encode(auth_str.encode("ascii")).decode("ascii")
+    req.add_header("Authorization", f"Basic {b64_auth}")
+
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            secrets = json.load(response)
+            
+            count = 0
+            for key, value in secrets.items():
+                # We overwrite existing env vars to allow Doppler to be the source of truth
+                # or we can choose to only set if missing.
+                # Usually tools prioritize ENV > Config. 
+                # Here we treat Doppler as "Better ENV".
+                if key not in os.environ:
+                    os.environ[key] = str(value)
+                    count += 1
+            
+            console.print(f"[green]✅ Loaded {count} secrets from Doppler.[/green]")
+    except Exception as e:
+        console.print(f"[red]❌ Failed to load Doppler secrets: {e}[/red]")
 
 
 def get_credentials(provider=None):
@@ -138,7 +180,22 @@ def check_cloud_env():
         console.print("   [yellow]Run:[/yellow] pip install b2sdk")
 
 def main():
+    # 1. Inject Doppler Secrets (Environment Override)
+    inject_doppler_secrets()
+
+    # 2. Load File Config
     defaults = config.load_project_config()
+
+    # 3. Merge Environment Config (Doppler/Manual) into Defaults
+    # This ensures that if a key exists in Env (from Doppler), it overrides/fills the file config.
+    if os.environ.get("PV_BUCKET"):
+        defaults["bucket"] = os.environ["PV_BUCKET"]
+    if os.environ.get("PV_ENDPOINT"):
+        defaults["endpoint"] = os.environ["PV_ENDPOINT"]
+    if os.environ.get("PV_VAULT_PATH"):
+        defaults["vault_path"] = os.environ["PV_VAULT_PATH"]
+    if os.environ.get("PV_RESTORE_PATH"):
+        defaults["restore_path"] = os.environ["PV_RESTORE_PATH"]
 
     # Hijack for pass-through commands to avoid argparse issues with flags like --help
     if len(sys.argv) > 1:
@@ -156,6 +213,13 @@ def main():
             # Inject vault_path from config if --dest is missing
             if defaults.get("vault_path") and "--dest" not in sys.argv:
                 sys.argv.extend(["--dest", defaults["vault_path"]])
+            
+            # Inject bucket/endpoint if available in config
+            if defaults.get("bucket") and "--bucket" not in sys.argv:
+                sys.argv.extend(["--bucket", defaults["bucket"]])
+            
+            if defaults.get("endpoint") and "--endpoint" not in sys.argv:
+                sys.argv.extend(["--endpoint", defaults["endpoint"]])
                 
             clone_cli.main()
             sys.exit(0)
@@ -271,9 +335,23 @@ def main():
             clone_cli.main()
             
         elif args.command == "archive-restore":
-            from projectrestore import cli as restore_cli
+            try:
+                from projectrestore import cli as restore_cli
+            except ImportError as e:
+                print(f"Error executing command 'archive-restore': {e}")
+                sys.exit(1)
+            
+            # Inject bucket/endpoint if available in config
+            if defaults.get("bucket") and "--bucket" not in args.args:
+                args.args.extend(["--bucket", defaults["bucket"]])
+            
+            if defaults.get("endpoint") and "--endpoint" not in args.args:
+                args.args.extend(["--endpoint", defaults["endpoint"]])
+
             sys.argv = ["projectrestore"] + args.args
             restore_cli.main()
+            sys.exit(0)
+            return
             
         elif args.command == "vault":
             if not args.vault_path:

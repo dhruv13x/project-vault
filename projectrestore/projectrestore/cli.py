@@ -48,6 +48,81 @@ DEFAULT_PATTERN = "*-bot_platform-*.tar.gz"
 DEFAULT_LOCKFILE = Path("/tmp/extract_backup.pid")
 
 
+def get_cloud_credentials():
+    """
+    Resolves cloud credentials with precedence (duplicated from pv for standalone capability).
+    Returns: (provider_type, key_id, app_key)
+    """
+    aws_key_pv = os.environ.get("PV_AWS_ACCESS_KEY_ID")
+    aws_secret_pv = os.environ.get("PV_AWS_SECRET_ACCESS_KEY")
+    aws_key_std = os.environ.get("AWS_ACCESS_KEY_ID")
+    aws_secret_std = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+    b2_key_pv = os.environ.get("PV_B2_KEY_ID")
+    b2_app_pv = os.environ.get("PV_B2_APP_KEY")
+    b2_key_std = os.environ.get("B2_KEY_ID")
+    b2_app_std = os.environ.get("B2_APP_KEY")
+
+    aws_final_key = aws_key_pv or aws_key_std
+    aws_final_secret = aws_secret_pv or aws_secret_std
+    b2_final_key = b2_key_pv or b2_key_std
+    b2_final_app = b2_app_pv or b2_app_std
+
+    if aws_final_key and aws_final_secret:
+        return "s3", aws_final_key, aws_final_secret
+    if b2_final_key and b2_final_app:
+        return "b2", b2_final_key, b2_final_app
+    return None, None, None
+
+
+def download_from_cloud(bucket_name, remote_filename, local_dest, endpoint=None):
+    """
+    Downloads a file from the cloud.
+    """
+    try:
+        from src.common import b2, s3
+    except ImportError:
+        # Try relative import if we are inside the pv structure
+        try:
+            import sys
+            current = Path(__file__).resolve()
+            # projectrestore/projectrestore/cli.py -> ... -> tools/project_vault
+            # We need to find where src/common is.
+            # Assuming standard layout: project_vault/src/common
+            # We are in project_vault/projectrestore/projectrestore
+            # So we need to go up 3 levels to project_vault, then into src
+            root = current.parents[2]
+            sys.path.insert(0, str(root / "src"))
+            from common import b2, s3
+        except ImportError:
+            LOG.error("Could not import 'src.common'. Cloud features require the full Project Vault environment.")
+            return False
+
+    provider, key_id, app_key = get_cloud_credentials()
+    if not key_id or not app_key:
+        LOG.error("Missing cloud credentials.")
+        return False
+
+    manager = None
+    try:
+        if endpoint or provider == "s3":
+             manager = s3.S3Manager(key_id, app_key, bucket_name, endpoint)
+        else:
+             manager = b2.B2Manager(key_id, app_key, bucket_name)
+    except Exception as e:
+        LOG.error("Error initializing cloud connection: %s", e)
+        return False
+
+    LOG.info("Downloading %s from bucket '%s'...", remote_filename, bucket_name)
+    try:
+        manager.download_file(remote_filename, str(local_dest))
+        LOG.info("✅ Download successful: %s", local_dest)
+        return True
+    except Exception as e:
+        LOG.error("❌ Download failed: %s", e)
+        return False
+
+
 def vault_restore_main() -> None:
     parser = argparse.ArgumentParser(prog="projectrestore vault-restore", description="Restore from content-addressable vault")
     parser.add_argument("manifest", help="Path to the snapshot manifest file")
@@ -130,6 +205,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--dry-run", action="store_true", help="Validate archive without writing files"
     )
+    p.add_argument("--cloud", action="store_true", help="Download archive from cloud before extracting")
+    p.add_argument("--bucket", help="Cloud bucket name (required for --cloud)")
+    p.add_argument("--endpoint", help="Cloud endpoint URL")
+    p.add_argument("--file", help="Specific archive filename to download/extract (required for --cloud)")
     p.add_argument(
         "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
     )
@@ -155,11 +234,13 @@ def main() -> int:
 
     LOG.info("Backup dir: %s", backup_dir)
     LOG.info("Extract dir: %s", extract_dir)
-    LOG.info("Pattern: %s", args.pattern)
 
-    if not backup_dir.exists() or not backup_dir.is_dir():
-        LOG.error("Backup directory not found: %s", backup_dir)
-        return 1
+    if not backup_dir.exists():
+        try:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            LOG.error("Could not create backup dir %s: %s", backup_dir, e)
+            return 1
 
     # Ensure parent of extract dir exists
     try:
@@ -187,14 +268,44 @@ def main() -> int:
     shutdown.install()
 
     try:
-        latest = find_latest_backup(backup_dir, args.pattern)
-        if latest is None:
+        latest = None
+        
+        if args.cloud:
+            if not args.bucket or not args.file:
+                LOG.error("Error: --cloud requires --bucket and --file")
+                return 1
+            
+            local_target = backup_dir / args.file
+            
+            # Check if already exists? For safety, maybe overwrite or check size?
+            # For now, we assume user wants to re-download if they asked for it.
+            if not download_from_cloud(args.bucket, args.file, local_target, args.endpoint):
+                LOG.error("Failed to download backup from cloud.")
+                return 1
+            
+            latest = local_target
+            
+        elif args.file:
+            # User specified a local file explicitly
+            candidate = backup_dir / args.file
+            if candidate.exists():
+                latest = candidate
+            else:
+                # Try absolute path
+                candidate = Path(args.file).resolve()
+                if candidate.exists():
+                    latest = candidate
+        else:
+            # Auto-discovery
+            latest = find_latest_backup(backup_dir, args.pattern)
+
+        if latest is None or not latest.exists():
             LOG.error(
-                "No backup file found in %s matching %s", backup_dir, args.pattern
+                "No backup file found matching request in %s", backup_dir
             )
             return 1
 
-        LOG.info("Latest backup found: %s", latest)
+        LOG.info("Target backup: %s", latest)
 
         if args.checksum:
             ok = verify_sha256_from_file(latest, Path(args.checksum))

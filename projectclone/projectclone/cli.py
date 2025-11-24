@@ -46,6 +46,108 @@ from .banner import print_logo
 from . import cas_engine
 
 
+def get_cloud_credentials():
+    """
+    Resolves cloud credentials with precedence:
+    1. PV_ prefixed variables (PV_AWS_..., PV_B2_...)
+    2. Standard variables (AWS_..., B2_...)
+    Returns: (provider_type, key_id, app_key)
+    """
+    # AWS / S3
+    aws_key_pv = os.environ.get("PV_AWS_ACCESS_KEY_ID")
+    aws_secret_pv = os.environ.get("PV_AWS_SECRET_ACCESS_KEY")
+    aws_key_std = os.environ.get("AWS_ACCESS_KEY_ID")
+    aws_secret_std = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+    # B2
+    b2_key_pv = os.environ.get("PV_B2_KEY_ID")
+    b2_app_pv = os.environ.get("PV_B2_APP_KEY")
+    b2_key_std = os.environ.get("B2_KEY_ID")
+    b2_app_std = os.environ.get("B2_APP_KEY")
+
+    aws_final_key = aws_key_pv or aws_key_std
+    aws_final_secret = aws_secret_pv or aws_secret_std
+    b2_final_key = b2_key_pv or b2_key_std
+    b2_final_app = b2_app_pv or b2_app_std
+
+    if aws_final_key and aws_final_secret:
+        return "s3", aws_final_key, aws_final_secret
+    if b2_final_key and b2_final_app:
+        return "b2", b2_final_key, b2_final_app
+    return None, None, None
+
+
+def upload_to_cloud(file_path, bucket_name, endpoint=None, log_fp=None):
+    """
+    Uploads the specified file to the cloud bucket.
+    """
+    try:
+        from src.common import b2, s3
+    except ImportError:
+        msg = "Error: Could not import 'src.common'. Cloud features require the full Project Vault environment."
+        print(msg)
+        if log_fp:
+            try:
+                log_fp.write(msg + "\n")
+            except Exception:
+                pass
+        return
+
+    provider, key_id, app_key = get_cloud_credentials()
+
+    if not key_id or not app_key:
+        msg = "Error: Missing cloud credentials. Set PV_AWS_... or PV_B2_... environment variables."
+        print(msg)
+        if log_fp:
+            try:
+                log_fp.write(msg + "\n")
+            except Exception:
+                pass
+        return
+
+    manager = None
+    try:
+        # Logic: If endpoint provided OR we detected S3 creds, use S3Manager
+        if endpoint or provider == "s3":
+             manager = s3.S3Manager(key_id, app_key, bucket_name, endpoint)
+        else:
+             manager = b2.B2Manager(key_id, app_key, bucket_name)
+    except Exception as e:
+        msg = f"Error initializing cloud connection: {e}"
+        print(msg)
+        if log_fp:
+            try:
+                log_fp.write(msg + "\n")
+            except Exception:
+                pass
+        return
+
+    remote_name = file_path.name
+    print(f"Uploading {remote_name} to bucket '{bucket_name}'...")
+    if log_fp:
+        try:
+            log_fp.write(f"Starting upload of {remote_name} to {bucket_name}\n")
+        except Exception:
+            pass
+
+    try:
+        manager.upload_file(str(file_path), remote_name)
+        print(f"✅ Upload successful: {remote_name}")
+        if log_fp:
+            try:
+                log_fp.write(f"Upload successful: {remote_name}\n")
+            except Exception:
+                pass
+    except Exception as e:
+        msg = f"❌ Upload failed: {e}"
+        print(msg)
+        if log_fp:
+            try:
+                log_fp.write(msg + "\n")
+            except Exception:
+                pass
+
+
 def vault_main():
     parser = argparse.ArgumentParser(prog="projectclone vault", description="Backup to content-addressable vault")
     parser.add_argument("source", nargs="?", default=".", help="The project directory to backup")
@@ -77,6 +179,9 @@ def parse_args():
     p.add_argument("--dry-run", action="store_true", help="only estimate and show actions, do not write (for incremental allow rsync dry-run)")
     p.add_argument("--incremental", action="store_true", help="use rsync incremental (requires rsync)")
     p.add_argument("--verbose", action="store_true", help="verbose logging")
+    p.add_argument("--cloud", action="store_true", help="upload the backup to cloud after creation")
+    p.add_argument("--bucket", help="target cloud bucket name (required if --cloud is used)")
+    p.add_argument("--endpoint", help="target cloud endpoint URL (optional)")
     p.add_argument(
         "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
     )
@@ -205,6 +310,7 @@ def main():
                 sys.exit(1)
 
         # Main operation
+        final_output_path = None
         if args.incremental:
             if not have_rsync():
                 raise RuntimeError("incremental requested but rsync not found")
@@ -224,6 +330,7 @@ def main():
                 dry_run=args.dry_run,
             )
             print(f"Incremental backup created: {final}")
+            final_output_path = final
             if log_fp:
                 try:
                     log_fp.write(f"Incremental backup created: {final}\n")
@@ -291,6 +398,7 @@ def main():
                     pass
 
                 print(f"Archive created: {final}")
+                final_output_path = final
                 if log_fp:
                     try:
                         log_fp.write(f"Archive created at {final}\n")
@@ -311,6 +419,7 @@ def main():
                 excludes=args.exclude,
             )
             print(f"Folder backup created: {final}")
+            final_output_path = final
             if log_fp:
                 try:
                     log_fp.write(f"Folder backup created: {final}\n")
@@ -324,6 +433,18 @@ def main():
                     log_fp.write(f"Rotation kept {args.keep} backups for project {foldername}\n")
                 except Exception:
                     pass
+        
+        # Cloud Upload Trigger
+        if args.cloud and final_output_path and not args.dry_run:
+            if not args.bucket:
+                print("WARNING: --cloud specified but no --bucket provided. Skipping upload.")
+                if log_fp:
+                    try:
+                        log_fp.write("WARNING: --cloud specified but no --bucket provided. Skipping upload.\n")
+                    except Exception:
+                        pass
+            else:
+                upload_to_cloud(final_output_path, args.bucket, args.endpoint, log_fp)
 
         print("Backup finished.")
         if log_fp:
