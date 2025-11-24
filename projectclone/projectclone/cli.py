@@ -53,7 +53,9 @@ def vault_main():
     args = parser.parse_args(sys.argv[2:])
 
     try:
-        cas_engine.backup_to_vault(os.path.abspath(args.source), os.path.abspath(args.vault_path))
+        source_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.source)))
+        vault_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.vault_path)))
+        cas_engine.backup_to_vault(source_path, vault_path)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
@@ -142,8 +144,8 @@ def main():
                 pass
 
         try:
-            statvfs = os.statvfs(str(dest_base))
-            free = statvfs.f_frsize * statvfs.f_bavail
+            import shutil
+            total, used, free = shutil.disk_usage(str(dest_base))
             print(f"Free space at destination: {human_size(free)}")
             if log_fp:
                 try:
@@ -158,6 +160,7 @@ def main():
                     except Exception:
                         pass
         except Exception:
+            print("Could not determine destination free space")
             if log_fp:
                 try:
                     log_fp.write("Could not determine destination free space\n")

@@ -114,37 +114,39 @@ class TestCliExt:
         captured = capsys.readouterr()
         assert "ERROR:" in captured.out
 
-    @patch("os.statvfs")
-    def test_main_insufficient_space(self, mock_statvfs, temp_src, temp_dest, capsys, monkeypatch):
-        # Mock statvfs to return little free space (10 bytes)
-        # f_frsize * f_bavail = free space
-        mock_stat = MagicMock()
-        mock_stat.f_frsize = 1
-        mock_stat.f_bavail = 10
-        mock_statvfs.return_value = mock_stat
-
-        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--dest", str(temp_dest), "--yes"])
-        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
-
-        # Ensure we have some file size > 10
-        with patch("projectclone.cli.walk_stats", return_value=(1, 100)):
-             with patch("projectclone.cli.copy_tree_atomic"):
-                main()
+    @patch("shutil.disk_usage")
+    def test_main_insufficient_space(self, mock_disk_usage, temp_src, temp_dest, capsys, monkeypatch):
+        # Mock disk_usage to return little free space (10 bytes)
+        # (total, used, free)
+        mock_disk_usage.return_value = (1000, 990, 10)
+        
+        # Mock walk_stats to return large size (100 bytes)
+        with patch("projectclone.cli.walk_stats", return_value=(5, 100)):
+             monkeypatch.setattr("sys.argv", ["projectclone", "note", "--dest", str(temp_dest), "--yes"])
+             # Run main
+             from projectclone.cli import main
+             try:
+                 main()
+             except SystemExit:
+                 pass
 
         captured = capsys.readouterr()
         assert "WARNING: estimated backup size exceeds free space" in captured.out
 
-    @patch("os.statvfs")
-    def test_main_statvfs_error(self, mock_statvfs, temp_src, temp_dest, capsys, monkeypatch):
-        mock_statvfs.side_effect = OSError("Stat fail")
-        monkeypatch.setattr(sys, "argv", ["script.py", "note", "--dest", str(temp_dest), "--yes"])
-        monkeypatch.setattr(Path, "cwd", lambda: temp_src)
+    @patch("shutil.disk_usage")
+    def test_main_statvfs_error(self, mock_disk_usage, temp_src, temp_dest, capsys, monkeypatch):
+        mock_disk_usage.side_effect = OSError("Stat fail")
+        
+        with patch("projectclone.cli.walk_stats", return_value=(5, 100)):
+             monkeypatch.setattr("sys.argv", ["projectclone", "note", "--dest", str(temp_dest), "--yes"])
+             try:
+                 main()
+             except SystemExit:
+                 pass
 
-        with patch("projectclone.cli.copy_tree_atomic"):
-            main()
-        # Should proceed gracefully
         captured = capsys.readouterr()
-        assert "Scanning files" in captured.out
+        # Should print "Could not determine destination free space"
+        assert "Could not determine destination free space" in captured.out
 
     @patch("projectclone.cli.atomic_move")
     @patch("projectclone.cli.create_archive")

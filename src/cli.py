@@ -32,6 +32,16 @@ except ImportError:
             import config
 
 
+def resolve_path(path_str):
+    """
+    Expands user (~) and environment variables ($VAR) in a path, 
+    then returns the absolute path.
+    """
+    if not path_str:
+        return path_str
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(path_str)))
+
+
 def get_credentials(provider=None):
     """
     Resolves cloud credentials with precedence:
@@ -271,15 +281,15 @@ def main():
                 sys.exit(1)
                 return
             
-            source_abs = os.path.abspath(args.source)
+            source_abs = resolve_path(args.source)
             project_name = args.name or os.path.basename(source_abs)
             
             from projectclone import cas_engine
-            cas_engine.backup_to_vault(source_abs, os.path.abspath(args.vault_path), project_name=project_name)
+            cas_engine.backup_to_vault(source_abs, resolve_path(args.vault_path), project_name=project_name)
 
         elif args.command == "vault-restore":
             from projectrestore import restore_engine
-            restore_engine.restore_snapshot(os.path.abspath(args.manifest), os.path.abspath(args.dest))
+            restore_engine.restore_snapshot(resolve_path(args.manifest), resolve_path(args.dest))
             
         elif args.command == "init":
             if args.pyproject:
@@ -309,8 +319,8 @@ def main():
                 }
             
             status_engine.show_status(
-                os.path.abspath(args.source),
-                os.path.abspath(args.vault_path),
+                resolve_path(args.source),
+                resolve_path(args.vault_path),
                 cloud_config
             )
 
@@ -326,8 +336,8 @@ def main():
             from projectclone import diff_engine
             diff_engine.show_diff(
                 source_root,
-                os.path.abspath(args.vault_path),
-                os.path.abspath(args.file)
+                resolve_path(args.vault_path),
+                resolve_path(args.file)
             )
 
         elif args.command == "checkout":
@@ -340,8 +350,8 @@ def main():
             from projectclone import checkout_engine
             checkout_engine.checkout_file(
                 source_root,
-                os.path.abspath(args.vault_path),
-                os.path.abspath(args.file),
+                resolve_path(args.vault_path),
+                resolve_path(args.file),
                 force=args.force
             )
 
@@ -364,7 +374,7 @@ def main():
                 if not args.vault_path:
                     print("Error: vault_path must be specified in CLI or pv.toml for local listing.")
                     sys.exit(1)
-                list_engine.list_local_snapshots(os.path.abspath(args.vault_path))
+                list_engine.list_local_snapshots(resolve_path(args.vault_path))
 
         elif args.command == "push":
             if not args.vault_path:
@@ -383,7 +393,7 @@ def main():
                 
             from projectclone import sync_engine
             sync_engine.sync_to_cloud(
-                os.path.abspath(args.vault_path),
+                resolve_path(args.vault_path),
                 args.bucket,
                 args.endpoint,
                 key_id,
@@ -408,7 +418,7 @@ def main():
                 
             from projectclone import sync_engine
             sync_engine.sync_from_cloud(
-                os.path.abspath(args.vault_path),
+                resolve_path(args.vault_path),
                 args.bucket,
                 args.endpoint,
                 key_id,
@@ -421,7 +431,7 @@ def main():
                 print("Error: vault_path must be specified in CLI or pv.toml")
                 sys.exit(1)
             from projectclone import integrity_engine
-            if not integrity_engine.verify_vault(os.path.abspath(args.vault_path)):
+            if not integrity_engine.verify_vault(resolve_path(args.vault_path)):
                 sys.exit(1)
                 
         elif args.command == "gc":
@@ -429,7 +439,7 @@ def main():
                 print("Error: vault_path must be specified in CLI or pv.toml")
                 sys.exit(1)
             from projectclone import gc_engine
-            gc_engine.run_garbage_collection(os.path.abspath(args.vault_path), args.dry_run)
+            gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
 
         elif args.command == "check-env":
             check_cloud_env()

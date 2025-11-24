@@ -171,25 +171,27 @@ class TestCLI:
             cli.main()
             mock_sys_exit.assert_called_with(2)
 
-    def test_insufficient_space_warning(self, mock_sys_argv, mock_cwd, mock_walk_stats, tmp_path):
-        """Test warning when space is insufficient (mock statvfs)."""
-        sys.argv = ['create_backup.py', 'note', '--yes', '--dest', str(tmp_path)]
-
-        # mock_walk_stats returns total_size=1000
-        # mock statvfs to return very little space
-        mock_stat = MagicMock()
-        mock_stat.f_frsize = 1
-        mock_stat.f_bavail = 10 # 10 bytes free
-
-        with patch('os.statvfs', return_value=mock_stat), \
-             patch('projectclone.cli.copy_tree_atomic'), \
-             patch('projectclone.cli.print_logo'), \
-             patch('builtins.print') as mock_print:
-
-             cli.main()
-             # Check if warning printed
-             warning_printed = any("WARNING: estimated backup size exceeds free space" in str(call) for call in mock_print.call_args_list)
-             assert warning_printed
+    @patch("shutil.disk_usage")
+    def test_main_insufficient_space(self, mock_disk_usage, mock_sys_argv, mock_cwd, mock_walk_stats, tmp_path, mock_sys_exit):
+        """Test warning when space is insufficient (mock shutil.disk_usage)."""
+        
+        # mock disk_usage to return (total, used, free)
+        # free space = 10 bytes, total_size = 100 bytes
+        mock_disk_usage.return_value = (1000, 990, 10)
+        
+        mock_walk_stats.return_value = (5, 100)  # 100 bytes needed
+        
+        from projectclone.cli import main
+        
+        # We expect the warning to be printed
+        with patch('builtins.print') as mock_print:
+            # We also need to mock input to avoid hanging
+            with patch('builtins.input', return_value='y'):
+                 main()
+                 
+            # Check for the warning in print calls
+            print_calls = [str(c) for c in mock_print.mock_calls]
+            assert any("WARNING: estimated backup size exceeds free space" in s for s in print_calls)
 
     def test_dry_run_no_incremental(self, mock_sys_argv, mock_cwd, mock_walk_stats, tmp_path):
         """Test --dry-run without --incremental exits without action."""

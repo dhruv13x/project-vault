@@ -55,7 +55,9 @@ def vault_restore_main() -> None:
     args = parser.parse_args(sys.argv[2:])
 
     try:
-        restore_engine.restore_snapshot(os.path.abspath(args.manifest), os.path.abspath(args.dest))
+        manifest_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.manifest)))
+        dest_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.dest)))
+        restore_engine.restore_snapshot(manifest_path, dest_path)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
