@@ -1,5 +1,5 @@
 import os
-from src.common import cas
+from pv_core import cas
 
 
 def verify_vault(vault_path: str) -> bool:

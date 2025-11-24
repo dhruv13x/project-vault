@@ -38,7 +38,7 @@ class TestListEngineExtended:
         assert "No snapshots found" in captured.out
 
     def test_list_cloud_snapshots_success(self, capsys):
-        with patch("src.common.b2.B2Manager") as mock_b2:
+        with patch("pv_core.b2.B2Manager") as mock_b2:
             inst = mock_b2.return_value
             inst.list_file_names.return_value = ["snapshots/p1/s1.json", "snapshots/p1/s2.json"]
 
@@ -48,7 +48,7 @@ class TestListEngineExtended:
         assert "p1" in captured.out
 
     def test_list_cloud_ignore_bad_names(self, capsys):
-        with patch("src.common.b2.B2Manager") as mock_b2:
+        with patch("pv_core.b2.B2Manager") as mock_b2:
             inst = mock_b2.return_value
             inst.list_file_names.return_value = ["snapshots/p1", "snapshots/file.json", "other/file"]
 
@@ -58,7 +58,7 @@ class TestListEngineExtended:
         assert "No snapshots found" in captured.out
 
     def test_list_cloud_snapshots_error(self, capsys):
-        with patch("src.common.b2.B2Manager", side_effect=Exception("Auth fail")):
+        with patch("pv_core.b2.B2Manager", side_effect=Exception("Auth fail")):
             list_engine.list_cloud_snapshots("bucket", "id", "key")
 
         captured = capsys.readouterr()

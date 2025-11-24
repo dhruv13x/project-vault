@@ -14,6 +14,8 @@ dependencies = [
     "boto3",
     "b2sdk",
     "rich",
+    "zstandard>=0.22.0",
+    "textual>=0.50.0",
     "tomli; python_version < '3.11'"
 ]
 
@@ -50,6 +52,7 @@ dev = [
 pythonpath = [
   ".",          # root packages: projectclone, projectrestore
   "src",        # src-based modules
+  "project-vault-core/src",
 ]
 
 testpaths = [

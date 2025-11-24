@@ -48,7 +48,7 @@ class TestStatusCoverageFinal:
         manifest.write_text('{"files": {"vanish.txt": "hash"}}')
 
         # Mock calculate_hash to raise OSError
-        with patch("src.common.cas.calculate_hash", side_effect=OSError):
+        with patch("pv_core.cas.calculate_hash", side_effect=OSError):
              status = status_engine.get_local_status(str(src), str(vault))
 
         # Should catch OSError and not add to modified/new

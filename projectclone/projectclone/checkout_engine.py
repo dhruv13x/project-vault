@@ -5,10 +5,10 @@ from rich.console import Console
 
 # Import common modules
 try:
-    from src.common import manifest
+    from pv_core import manifest, cas
 except ImportError:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-    from src.common import manifest
+    from pv_core import manifest
 
 def _get_latest_snapshot(vault_path: str, project_name: str):
     """Finds the path to the latest snapshot manifest for a project."""
@@ -81,8 +81,8 @@ def checkout_file(source_root: str, vault_path: str, target_file: str, force: bo
             return
 
     try:
-        os.makedirs(os.path.dirname(abs_target), exist_ok=True)
-        shutil.copy2(object_path, abs_target)
+        # Use cas helper to handle compression/decompression
+        cas.restore_object_to_file(object_path, abs_target)
         
         # Apply Metadata
         if metadata:

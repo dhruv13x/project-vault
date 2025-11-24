@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src')))
 
 from projectclone import integrity_engine
-from src.common import cas
+from pv_core import cas
 
 @pytest.fixture
 def test_vault(tmp_path):
@@ -69,7 +69,7 @@ class TestVerifyVault:
         assert "Error: Objects directory not found" in captured.out
 
     def test_handles_exception_during_hash(self, test_vault, capsys):
-        with patch('src.common.cas.calculate_hash', side_effect=IOError("Can't read file")):
+        with patch('pv_core.cas.calculate_hash', side_effect=IOError("Can't read file")):
             result = integrity_engine.verify_vault(str(test_vault))
             assert result is False # If any error occurs, vault is not healthy
             

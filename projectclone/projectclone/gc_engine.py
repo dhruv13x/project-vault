@@ -1,6 +1,6 @@
 import os
 import sys
-from src.common import manifest
+from pv_core import manifest
 
 
 def run_garbage_collection(vault_path: str, dry_run: bool = False) -> None:

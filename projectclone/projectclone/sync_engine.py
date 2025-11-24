@@ -1,5 +1,5 @@
 import os
-from src.common import b2, s3
+from pv_core import b2, s3
 
 
 def _get_storage_manager(bucket_name: str, endpoint: str, key_id: str, app_key: str):

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from src.common import b2
+from pv_core import b2
 
 
 def _parse_snapshot_name(filename: str) -> str:
@@ -93,10 +93,10 @@ def list_cloud_snapshots(bucket_name: str, key_id: str, app_key: str, endpoint: 
         # Logic: If an endpoint is provided OR we have AWS credentials in env, prefer S3.
         # Otherwise, default to B2 Native.
         if endpoint or os.environ.get("AWS_ACCESS_KEY_ID"):
-             from src.common import s3
+             from pv_core import s3
              manager = s3.S3Manager(key_id, app_key, bucket_name, endpoint)
         else:
-             from src.common import b2
+             from pv_core import b2
              manager = b2.B2Manager(key_id, app_key, bucket_name)
 
         console.print("Fetching snapshot list from Cloud...")

@@ -77,7 +77,7 @@ class TestCliExtendedV2:
         log_fp.write.assert_called()
 
     @patch("projectclone.cli.get_cloud_credentials")
-    @patch("src.common.s3.S3Manager")
+    @patch("pv_core.s3.S3Manager")
     def test_upload_to_cloud_s3_success(self, mock_s3, mock_creds, capsys):
         """Test upload_to_cloud with S3 provider."""
         mock_creds.return_value = ("s3", "key", "secret")
@@ -91,7 +91,7 @@ class TestCliExtendedV2:
         assert "Upload successful" in out
 
     @patch("projectclone.cli.get_cloud_credentials")
-    @patch("src.common.b2.B2Manager")
+    @patch("pv_core.b2.B2Manager")
     def test_upload_to_cloud_b2_failure(self, mock_b2, mock_creds, capsys):
         """Test upload_to_cloud with B2 provider failure."""
         mock_creds.return_value = ("b2", "key", "app")
@@ -158,11 +158,11 @@ class TestCliExtendedV2:
         mock_walk.return_value = (10, 1000)
         mock_du.return_value = (2000, 1500, 500) # total, used, free (500 < 1000)
 
-        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"):
+        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
              cli.main()
 
         out, _ = capsys.readouterr()
-        assert "WARNING: estimated backup size exceeds free space" in out
+        assert "WARNING: estimated backup size exceeds free space at destination" in out
 
     @patch("projectclone.cli.parse_args")
     @patch("projectclone.cli.walk_stats")
@@ -177,12 +177,12 @@ class TestCliExtendedV2:
         mock_parse.return_value = args
         mock_walk.return_value = (10, 100)
 
-        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du:
+        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du, patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
             du.return_value = (1000, 100, 900)
             cli.main()
 
         out, _ = capsys.readouterr()
-        assert "Dry run: no files will be written" in out
+        assert "Dry run: no files will be written. Exiting after report." in out
 
     @patch("projectclone.cli.parse_args")
     @patch("projectclone.cli.walk_stats")
@@ -199,7 +199,7 @@ class TestCliExtendedV2:
         mock_parse.return_value = args
         mock_walk.return_value = (10, 100)
 
-        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du:
+        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du, patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
              du.return_value = (1000, 100, 900)
              with pytest.raises(SystemExit) as exc:
                  cli.main()
@@ -225,7 +225,8 @@ class TestCliExtendedV2:
         mock_rsync.return_value = Path("/tmp/backup/final")
 
         with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du, \
-             patch("pathlib.Path.iterdir", return_value=[]):
+             patch("pathlib.Path.iterdir", return_value=[]), \
+             patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
              du.return_value = (1000, 100, 900)
              cli.main()
 
@@ -258,7 +259,7 @@ class TestCliExtendedV2:
 
         mock_archive.return_value = Path("/tmp/tmp_archive.tar.gz")
 
-        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du:
+        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du, patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
              du.return_value = (1000, 100, 900)
              cli.main()
 
@@ -286,7 +287,7 @@ class TestCliExtendedV2:
         mock_walk.return_value = (10, 100)
         mock_copy.return_value = Path("/tmp/backup/final")
 
-        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du:
+        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du, patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
              du.return_value = (1000, 100, 900)
              cli.main()
 
@@ -311,9 +312,9 @@ class TestCliExtendedV2:
         mock_walk.return_value = (10, 100)
         mock_copy.return_value = Path("/tmp/backup/final")
 
-        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du:
+        with patch("pathlib.Path.mkdir"), patch("pathlib.Path.touch"), patch("pathlib.Path.chmod"), patch("shutil.disk_usage") as du, patch.object(sys, 'argv', ['pv', 'clone', 'test_note']):
              du.return_value = (1000, 100, 900)
              cli.main()
 
         out, _ = capsys.readouterr()
-        assert "WARNING: --cloud specified but no --bucket provided" in out
+        assert "WARNING: --cloud specified but no --bucket provided. Skipping upload." in out

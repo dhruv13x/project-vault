@@ -6,10 +6,10 @@ from rich.syntax import Syntax
 
 # Import common modules
 try:
-    from src.common import manifest, cas
+    from pv_core import manifest, cas
 except ImportError:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-    from src.common import manifest, cas
+    from pv_core import manifest, cas
 
 def _get_latest_snapshot(vault_path: str, project_name: str):
     """Finds the path to the latest snapshot manifest for a project."""
@@ -72,8 +72,7 @@ def show_diff(source_path: str, vault_path: str, target_file: str):
 
     # 5. Perform Diff
     try:
-        with open(object_path, "r", encoding="utf-8", errors="replace") as f:
-            old_lines = f.readlines()
+        old_lines = cas.read_object_text(object_path)
         
         with open(abs_target, "r", encoding="utf-8", errors="replace") as f:
             new_lines = f.readlines()

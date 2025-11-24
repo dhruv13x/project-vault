@@ -1,9 +1,9 @@
 import sys
 import os
-from src.common import cas, manifest, ignore
+from pv_core import cas, manifest, ignore
 
 
-def backup_to_vault(source_path: str, vault_path: str, project_name: str = None) -> str:
+def backup_to_vault(source_path: str, vault_path: str, project_name: str = None, hooks: dict = None) -> str:
     """
     Performs a content-addressable backup of the source path to the vault.
 
@@ -11,10 +11,23 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None)
         source_path: The directory to back up.
         vault_path: The root directory of the backup vault.
         project_name: The name of the project. If None, it is derived from the source path.
+        hooks: Dictionary containing lifecycle hooks (pre_snapshot, post_snapshot).
 
     Returns:
         The absolute path to the saved manifest file.
     """
+    # Import hooks helper
+    try:
+        from pv_core.hooks import run_hook
+    except ImportError:
+        # Fallback
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+        from pv_core.hooks import run_hook
+
+    # --- Run Pre-Snapshot Hook ---
+    if hooks and "pre_snapshot" in hooks:
+        run_hook("pre_snapshot", hooks["pre_snapshot"])
+
     # --- Safety Checks ---
     abs_source = os.path.abspath(source_path)
     abs_vault = os.path.abspath(vault_path)
@@ -105,5 +118,9 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None)
     # Save the manifest
     manifest_path = manifest.save_manifest(snapshot_data, snapshots_dir, project_name=safe_project_name)
     print(f"Backup complete. Manifest saved to: {manifest_path}")
+    
+    # --- Run Post-Snapshot Hook ---
+    if hooks and "post_snapshot" in hooks:
+        run_hook("post_snapshot", hooks["post_snapshot"])
     
     return manifest_path

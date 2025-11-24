@@ -66,6 +66,20 @@ endpoint = "https://s3.eu-central-003.backblazeb2.com"
 # You can uncomment these to set default vault locations
 # vault_path = "./my_vault"
 # restore_path = "./restored_project"
+
+# --- Notifications (Optional) ---
+# [notifications.telegram]
+# enabled = false
+# bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+# chat_id = "-1001234567890"
+
+# --- Lifecycle Hooks (Optional) ---
+# Commands to run before/after backup and restore.
+# [hooks]
+# pre_snapshot = "echo 'Snapshot starting...'"
+# post_snapshot = "echo 'Snapshot finished.'"
+# pre_restore = "echo 'Restore starting...'"
+# post_restore = "echo 'Restore finished.'"
 """
     try:
         with open(target_path, "w", encoding="utf-8") as f:

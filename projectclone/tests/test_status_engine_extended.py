@@ -9,14 +9,14 @@ class TestStatusEngineExtended:
 
     def test_get_cloud_status_b2_error(self, tmp_path):
         vault = tmp_path / "vault"
-        with patch("src.common.b2.B2Manager", side_effect=Exception("B2 Fail")):
+        with patch("pv_core.b2.B2Manager", side_effect=Exception("B2 Fail")):
             status = status_engine.get_cloud_status(str(vault), "bucket", None, "id", "key")
             assert status["error"] == "B2 Fail"
             assert status["connected"] is False
 
     def test_get_cloud_status_s3_error(self, tmp_path):
         vault = tmp_path / "vault"
-        with patch("src.common.s3.S3Manager", side_effect=Exception("S3 Fail")):
+        with patch("pv_core.s3.S3Manager", side_effect=Exception("S3 Fail")):
             status = status_engine.get_cloud_status(str(vault), "bucket", "endpoint", "id", "key")
             assert status["error"] == "S3 Fail"
 
@@ -52,7 +52,7 @@ class TestStatusEngineExtended:
         (snap_dir / "s2.json").write_text("{}")
         (snap_dir / "s3.json").write_text("{}")
 
-        with patch("src.common.b2.B2Manager") as mock_b2:
+        with patch("pv_core.b2.B2Manager") as mock_b2:
             inst = mock_b2.return_value
             inst.list_file_names.return_value = [
                 "snapshots/proj/s1.json",

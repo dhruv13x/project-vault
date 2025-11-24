@@ -2,7 +2,7 @@ import pytest
 import os
 from unittest.mock import patch
 
-from common import config
+from pv_core import config
 
 @pytest.fixture
 def temp_dir(tmp_path):
@@ -72,7 +72,7 @@ bucket = "secondary-bucket"
         captured = capsys.readouterr()
         assert "Warning: Failed to parse" in captured.out
 
-    @patch('common.config.tomllib', None)
+    @patch('pv_core.config.tomllib', None)
     def test_tomllib_not_available(self, temp_dir):
         cfg = config.load_project_config(start_path=str(temp_dir))
         assert cfg == {}

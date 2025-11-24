@@ -35,20 +35,22 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # Add projectclone/src and projectrestore/src to sys.path
 sys.path.insert(0, os.path.join(current_dir, "../projectclone/src"))
 sys.path.insert(0, os.path.join(current_dir, "../projectrestore/src"))
-# Add src/ itself for common
+# Add project-vault-core/src to sys.path
+sys.path.insert(0, os.path.join(current_dir, "../project-vault-core/src"))
+# Add src/ itself for backward compatibility (though strictly we shouldn't need it for core anymore)
 sys.path.insert(0, current_dir)
 
 # Attempt to import common, handling both editable/local and installed package scenarios
 try:
-    import common.config as config
+    import pv_core.config as config
 except ImportError:
     # Fallback: try relative import if running as script/module inside src
     try:
-        from .common import config
+        from pv_core import config
     except ImportError:
         # Final fallback for some editable installs or specific layouts
         try:
-            from src.common import config
+            from src.pv_core import config
         except ImportError:
             # If all fails, assume we are running from installed package context where src is not in path
             # but the package root is.
@@ -365,6 +367,18 @@ def _real_main():
 
     # 2. Load File Config
     defaults = config.load_project_config()
+    
+    # Initialize Notifier
+    try:
+        from pv_core.notifications import TelegramNotifier
+        notifier = TelegramNotifier(defaults)
+    except ImportError:
+        # Fallback if running in different context
+        try:
+            from pv_core.notifications import TelegramNotifier
+            notifier = TelegramNotifier(defaults)
+        except ImportError:
+            notifier = None
 
     # 3. Merge Environment Config (Doppler/Manual) into Defaults
     # This ensures that if a key exists in Env (from Doppler), it overrides/fills the file config.
@@ -490,6 +504,11 @@ def _real_main():
     checkout_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
     checkout_parser.add_argument("-f", "--force", action="store_true", help="Overwrite without confirmation")
 
+    # --- Browse Command ---
+    browse_parser = subparsers.add_parser("browse", help="Interactive Time Machine TUI", formatter_class=RichHelpFormatter)
+    browse_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
+    browse_parser.add_argument("--name", help="Project name (default: current directory name)")
+
     # --- List Command ---
     list_parser = subparsers.add_parser("list", add_help=False)
     list_parser.add_argument("-h", "--help", action=RichListHelpAction)
@@ -501,6 +520,9 @@ def _real_main():
 
     # --- Cloud Env Check Command ---
     subparsers.add_parser("check-env", help="Verify Cloud Environment Variables (S3/B2)", formatter_class=RichHelpFormatter)
+
+    # --- Notify Test Command ---
+    subparsers.add_parser("notify-test", help="Send a test notification", formatter_class=RichHelpFormatter)
 
 
     # Simplified entry point: if no command is given, show our rich help.
@@ -527,15 +549,45 @@ def _real_main():
         source_abs = resolve_path(args.source)
         project_name = args.name or os.path.basename(source_abs)
 
+        # Extract hooks
+        hooks = defaults.get("hooks", {})
+        if hooks:
+            console.print("[bold yellow]⚠ Lifecycle Hooks Detected[/bold yellow]")
+            console.print("   Executing arbitrary shell commands defined in pv.toml.")
+
         from projectclone import cas_engine
-        cas_engine.backup_to_vault(source_abs, resolve_path(args.vault_path), project_name=project_name)
+        try:
+            manifest_path = cas_engine.backup_to_vault(
+                source_abs, 
+                resolve_path(args.vault_path), 
+                project_name=project_name,
+                hooks=hooks
+            )
+            if notifier:
+                notifier.send_message(f"✅ Snapshot created for '{project_name}'\nManifest: {manifest_path}", level="success")
+        except Exception as e:
+            if notifier:
+                notifier.send_message(f"🚨 Vault Snapshot Failed: {e}", level="error")
+            raise
 
     elif args.command == "vault-restore":
         if not args.dest:
             console.print("[error]Error: Destination directory must be specified in CLI or 'restore_path' in pv.toml[/error]")
             sys.exit(1)
+
+        # Extract hooks
+        hooks = defaults.get("hooks", {})
+        if hooks:
+            console.print("[bold red]⚠ Lifecycle Hooks Detected[/bold red]")
+            console.print("   This will execute shell commands defined in the snapshot configuration.")
+            console.print("   Ensure you trust the source of this backup.")
+
         from projectrestore import restore_engine
-        restore_engine.restore_snapshot(resolve_path(args.manifest), resolve_path(args.dest))
+        restore_engine.restore_snapshot(
+            resolve_path(args.manifest), 
+            resolve_path(args.dest),
+            hooks=hooks
+        )
 
     elif args.command == "init":
         if args.pyproject:
@@ -599,6 +651,26 @@ def _real_main():
             force=args.force
         )
 
+    elif args.command == "browse":
+        if not args.vault_path:
+            console.print("[error]Error: vault_path must be specified.[/error]")
+            sys.exit(1)
+            
+        source_root = os.getcwd()
+        project_name = args.name or os.path.basename(source_root)
+        
+        # Sanitize name (consistent with other commands)
+        import re
+        project_name = re.sub(r'[^a-zA-Z0-9_-]', '_', project_name)
+        
+        try:
+            from src.tui import ProjectVaultApp
+            app = ProjectVaultApp(resolve_path(args.vault_path), project_name)
+            app.run()
+        except ImportError:
+            console.print("[error]Error: 'textual' library not found. Install it with: pip install textual[/error]")
+            sys.exit(1)
+
     elif args.command == "list":
         from projectclone import list_engine
         if args.cloud:
@@ -636,14 +708,21 @@ def _real_main():
             sys.exit(1)
 
         from projectclone import sync_engine
-        sync_engine.sync_to_cloud(
-            resolve_path(args.vault_path),
-            args.bucket,
-            args.endpoint,
-            key_id,
-            app_key,
-            dry_run=args.dry_run
-        )
+        try:
+            sync_engine.sync_to_cloud(
+                resolve_path(args.vault_path),
+                args.bucket,
+                args.endpoint,
+                key_id,
+                app_key,
+                dry_run=args.dry_run
+            )
+            if notifier and not args.dry_run:
+                notifier.send_message(f"☁️ Cloud Push Successful to '{args.bucket}'", level="success")
+        except Exception as e:
+            if notifier:
+                notifier.send_message(f"❌ Cloud Push Failed: {e}", level="error")
+            raise
 
     elif args.command == "pull":
         if not args.vault_path:
@@ -687,6 +766,14 @@ def _real_main():
 
     elif args.command == "check-env":
         check_cloud_env()
+
+    elif args.command == "notify-test":
+        if notifier:
+            console.print("[info]Sending test notification...[/info]")
+            notifier.send_message("🔔 Test notification from Project Vault", level="info")
+            console.print("[success]Notification sent (check your Telegram).[/success]")
+        else:
+            console.print("[error]Notifier not initialized. Check your config/env.[/error]")
 
 if __name__ == "__main__":
     main()

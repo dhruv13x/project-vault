@@ -181,7 +181,8 @@ class TestMainCli:
         mock_cas_engine.backup_to_vault.assert_called_once_with(
             os.path.abspath('my_source'),
             os.path.abspath('/my_vault_path'),
-            project_name='my_source'
+            project_name='my_source',
+            hooks={}
         )
         mock_sys_exit.assert_not_called()
 
@@ -191,7 +192,8 @@ class TestMainCli:
         mock_cas_engine.backup_to_vault.assert_called_once_with(
             os.path.abspath('my_source'),
             os.path.abspath('/my_vault_path'),
-            project_name='custom_name'
+            project_name='custom_name',
+            hooks={}
         )
         mock_sys_exit.assert_not_called()
 
@@ -225,7 +227,8 @@ class TestMainCli:
         main()
         mock_restore_engine.restore_snapshot.assert_called_once_with(
             os.path.abspath('manifest.json'),
-            os.path.abspath('restore_dest')
+            os.path.abspath('restore_dest'),
+            hooks={}
         )
         mock_sys_exit.assert_not_called()
 

@@ -4,7 +4,7 @@ import sys
 import pytest
 from unittest.mock import MagicMock, patch
 from src import cli
-from src.common import smart_init
+from pv_core import smart_init
 
 class TestCliExtended:
 
@@ -51,7 +51,7 @@ class TestCliExtended:
 
     # --- CLI Interactive Errors ---
     def test_cli_vault_no_path(self, capsys):
-        with patch("src.common.config.load_project_config", return_value={}):
+        with patch("pv_core.config.load_project_config", return_value={}):
             with patch.object(sys, 'argv', ['pv', 'vault']):
                 with pytest.raises(SystemExit) as excinfo:
                     cli.main()
@@ -70,7 +70,7 @@ class TestCliExtended:
         assert "invalid choice" in out or "usage" in out
 
     def test_vault_command_success(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.cas_engine.backup_to_vault") as mock_vault:
                  with patch.object(sys, 'argv', ['pv', 'vault', 'src', 'dst']):
                      cli.main()

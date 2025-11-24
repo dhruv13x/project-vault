@@ -66,7 +66,7 @@ class TestListLocalSnapshots:
         assert "Snapshot directory not found" in captured.out
 
 class TestListCloudSnapshots:
-    @patch('src.common.b2.B2Manager')
+    @patch('pv_core.b2.B2Manager')
     def test_lists_cloud_snapshots(self, MockB2Manager, capsys):
         mock_manager = MockB2Manager.return_value
         # Fix: Return a SET of strings, not a list of dicts
@@ -83,7 +83,7 @@ class TestListCloudSnapshots:
         assert "proj1" in captured.out
         assert "proj2" in captured.out
 
-    @patch('src.common.b2.B2Manager')
+    @patch('pv_core.b2.B2Manager')
     def test_no_cloud_snapshots_found(self, MockB2Manager, capsys):
         mock_manager = MockB2Manager.return_value
         mock_manager.list_file_names.return_value = set()
@@ -93,7 +93,7 @@ class TestListCloudSnapshots:
         
         assert "No snapshots found in the cloud bucket" in captured.out
 
-    @patch('src.common.b2.B2Manager', side_effect=Exception("B2 Connection Error"))
+    @patch('pv_core.b2.B2Manager', side_effect=Exception("B2 Connection Error"))
     def test_cloud_connection_error(self, MockB2Manager, capsys):
         list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key")
         captured = capsys.readouterr()
@@ -101,7 +101,7 @@ class TestListCloudSnapshots:
         assert "Error connecting to cloud backend" in captured.out
         assert "B2 Connection Error" in captured.out
 
-    @patch('src.common.s3.S3Manager')
+    @patch('pv_core.s3.S3Manager')
     def test_uses_s3_with_endpoint(self, MockS3Manager, capsys):
         list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key", endpoint="http://s3.local")
         MockS3Manager.assert_called_once()

@@ -67,7 +67,7 @@ class TestProjectRestoreCliExtended:
         assert res is False
 
     @patch("projectrestore.cli.get_cloud_credentials")
-    @patch("src.common.s3.S3Manager")
+    @patch("pv_core.s3.S3Manager")
     def test_download_from_cloud_s3(self, mock_s3, mock_creds):
         mock_creds.return_value = ("s3", "key", "secret")
         manager = mock_s3.return_value
@@ -76,7 +76,7 @@ class TestProjectRestoreCliExtended:
         manager.download_file.assert_called_with("remote", "/tmp/local")
 
     @patch("projectrestore.cli.get_cloud_credentials")
-    @patch("src.common.b2.B2Manager")
+    @patch("pv_core.b2.B2Manager")
     def test_download_from_cloud_b2(self, mock_b2, mock_creds):
         mock_creds.return_value = ("b2", "key", "app")
         manager = mock_b2.return_value

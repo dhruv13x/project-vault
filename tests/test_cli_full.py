@@ -59,7 +59,7 @@ class TestCliFull:
                     mock_target.assert_called()
 
     def test_cli_push_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault', 'bucket': 'bkt'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault', 'bucket': 'bkt'}):
             with patch("src.cli.get_credentials", return_value=("id", "key")):
                 with patch("projectclone.sync_engine.sync_to_cloud", side_effect=Exception("Push fail")):
                     with patch.object(sys, 'argv', ['pv', 'push']):
@@ -67,7 +67,7 @@ class TestCliFull:
                             cli.main()
 
     def test_cli_pull_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault', 'bucket': 'bkt'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault', 'bucket': 'bkt'}):
             with patch("src.cli.get_credentials", return_value=("id", "key")):
                 with patch("projectclone.sync_engine.sync_from_cloud", side_effect=Exception("Pull fail")):
                     with patch.object(sys, 'argv', ['pv', 'pull']):
@@ -75,42 +75,42 @@ class TestCliFull:
                             cli.main()
 
     def test_cli_list_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.list_engine.list_local_snapshots", side_effect=Exception("List fail")):
                 with patch.object(sys, 'argv', ['pv', 'list']):
                     with pytest.raises(SystemExit):
                         cli.main()
 
     def test_cli_checkout_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.checkout_engine.checkout_file", side_effect=Exception("Checkout fail")):
                 with patch.object(sys, 'argv', ['pv', 'checkout', 'file']):
                     with pytest.raises(SystemExit):
                         cli.main()
 
     def test_cli_diff_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.diff_engine.show_diff", side_effect=Exception("Diff fail")):
                 with patch.object(sys, 'argv', ['pv', 'diff', 'file']):
                     with pytest.raises(SystemExit):
                         cli.main()
 
     def test_cli_gc_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.gc_engine.run_garbage_collection", side_effect=Exception("GC fail")):
                 with patch.object(sys, 'argv', ['pv', 'gc']):
                     with pytest.raises(SystemExit):
                         cli.main()
 
     def test_cli_integrity_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.integrity_engine.verify_vault", side_effect=Exception("Integrity fail")):
                 with patch.object(sys, 'argv', ['pv', 'check-integrity']):
                     with pytest.raises(SystemExit):
                         cli.main()
 
     def test_cli_vault_cmd_exception(self):
-        with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
+        with patch("pv_core.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
             with patch("projectclone.cas_engine.backup_to_vault", side_effect=Exception("Vault fail")):
                 with patch.object(sys, 'argv', ['pv', 'vault', 'src', 'dst']):
                     with pytest.raises(SystemExit):

@@ -1,12 +1,23 @@
 import os
 import sys
 import shutil
-from src.common import manifest
+from pv_core import manifest, cas
 
-def restore_snapshot(manifest_path: str, destination_path: str) -> None:
+def restore_snapshot(manifest_path: str, destination_path: str, hooks: dict = None) -> None:
     """
     Restores a project snapshot from the vault to the destination path.
     """
+    # Import hooks helper
+    try:
+        from pv_core.hooks import run_hook
+    except ImportError:
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+        from pv_core.hooks import run_hook
+
+    # --- Run Pre-Restore Hook ---
+    if hooks and "pre_restore" in hooks:
+        run_hook("pre_restore", hooks["pre_restore"])
+
     # --- Safety Checks (Zero Trust) ---
     abs_manifest_path = os.path.abspath(manifest_path)
     abs_destination_path = os.path.abspath(destination_path)
@@ -72,8 +83,8 @@ def restore_snapshot(manifest_path: str, destination_path: str) -> None:
              continue
 
         try:
-            os.makedirs(os.path.dirname(file_dest), exist_ok=True)
-            shutil.copy2(object_source, file_dest)
+            # Use cas helper to handle compression/decompression
+            cas.restore_object_to_file(object_source, file_dest)
             
             # Apply Metadata (V2)
             if metadata:
@@ -99,3 +110,7 @@ def restore_snapshot(manifest_path: str, destination_path: str) -> None:
             skipped_count += 1
 
     print(f"Restore complete. Restored: {restored_count}, Skipped/Failed: {skipped_count}")
+
+    # --- Run Post-Restore Hook ---
+    if hooks and "post_restore" in hooks:
+        run_hook("post_restore", hooks["post_restore"])

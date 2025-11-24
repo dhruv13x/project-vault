@@ -3,7 +3,7 @@ import os
 import json
 from datetime import datetime
 
-from common import manifest
+from pv_core import manifest
 
 @pytest.fixture
 def snapshots_dir(tmp_path):

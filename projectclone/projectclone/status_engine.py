@@ -9,11 +9,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 # Import common modules
 # We assume the orchestrator has set up sys.path correctly
 try:
-    from src.common import manifest, cas, ignore, b2, s3
+    from pv_core import manifest, cas, ignore, b2, s3
 except ImportError:
     # Fallback for direct execution or different path structures
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-    from src.common import manifest, cas, ignore, b2, s3
+    from pv_core import manifest, cas, ignore, b2, s3
 
 def _get_latest_snapshot(vault_path: str, project_name: str):
     """Finds the path to the latest snapshot manifest for a project."""

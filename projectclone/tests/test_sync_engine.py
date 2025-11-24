@@ -23,7 +23,7 @@ def local_vault(tmp_path):
     
     return vault
 
-@patch('src.common.b2.B2Manager')
+@patch('pv_core.b2.B2Manager')
 class TestSyncToCloud:
     def test_syncs_new_files_to_cloud(self, MockB2Manager, local_vault):
         mock_manager = MockB2Manager.return_value
@@ -67,13 +67,13 @@ class TestSyncToCloud:
         captured = capsys.readouterr()
         assert "No snapshots directory found" in captured.out
 
-    @patch('src.common.s3.S3Manager')
+    @patch('pv_core.s3.S3Manager')
     def test_uses_s3_manager_with_endpoint(self, MockS3Manager, local_vault):
         # Test that providing an endpoint triggers S3Manager usage
         sync_engine.sync_to_cloud(str(local_vault), "bucket", "https://s3.example.com", "id", "key")
         MockS3Manager.assert_called_once()
 
-@patch('src.common.b2.B2Manager')
+@patch('pv_core.b2.B2Manager')
 class TestSyncFromCloud:
     def test_downloads_missing_files_from_cloud(self, MockB2Manager, local_vault):
         mock_manager = MockB2Manager.return_value
