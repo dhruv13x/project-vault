@@ -1,6 +1,6 @@
 import os
 import pytest
-from pv_core.hashing import get_hash
+from src.common.hashing import get_hash
 
 @pytest.fixture
 def test_file():

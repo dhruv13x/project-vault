@@ -1,7 +1,7 @@
 import os
 import sys
 import shutil
-from pv_core import manifest, cas
+from src.common import manifest, cas
 
 def restore_snapshot(manifest_path: str, destination_path: str, hooks: dict = None) -> None:
     """
@@ -9,10 +9,10 @@ def restore_snapshot(manifest_path: str, destination_path: str, hooks: dict = No
     """
     # Import hooks helper
     try:
-        from pv_core.hooks import run_hook
+        from src.common.hooks import run_hook
     except ImportError:
         sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-        from pv_core.hooks import run_hook
+        from src.common.hooks import run_hook
 
     # --- Run Pre-Restore Hook ---
     if hooks and "pre_restore" in hooks:

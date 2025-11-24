@@ -41,7 +41,7 @@ class TestTuiLogic(unittest.TestCase):
         self.assertEqual(args[0], "20230102_120000")
         self.assertEqual(kwargs["data"]["path"], "/tmp/vault/snapshots/test_project/20230102_120000.json")
 
-    @patch("pv_core.manifest.load_manifest")
+    @patch("src.common.manifest.load_manifest")
     def test_load_snapshot_into_node(self, mock_load_manifest):
         # Mock data
         mock_load_manifest.return_value = {
@@ -80,7 +80,7 @@ class TestTuiLogic(unittest.TestCase):
         )
 
     @patch("os.path.exists")
-    @patch("pv_core.cas.read_object_text")
+    @patch("src.common.cas.read_object_text")
     def test_file_selection_reads_content(self, mock_read_text, mock_exists):
         mock_exists.return_value = True
         mock_read_text.return_value = ["Hello World"]

@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src')))
 
 from projectclone import gc_engine
-from pv_core import manifest
+from src.common import manifest
 
 @pytest.fixture
 def test_vault(tmp_path):

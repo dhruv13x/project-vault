@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src')))
 
 from projectclone import cas_engine
-from pv_core import manifest, cas
+from src.common import manifest, cas
 
 @pytest.fixture
 def source_dir(tmp_path):
@@ -116,7 +116,7 @@ class TestBackupToVault:
         assert not any("subdir" in key for key in data["files"])
 
     def test_error_during_store_object_is_handled(self, source_dir, vault_dir, capsys):
-        with patch('pv_core.cas.store_object', side_effect=Exception("Disk full")):
+        with patch('src.common.cas.store_object', side_effect=Exception("Disk full")):
             with pytest.raises(Exception, match="Disk full"):
                 cas_engine.backup_to_vault(str(source_dir), str(vault_dir))
             

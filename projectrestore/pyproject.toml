@@ -46,7 +46,6 @@ classifiers = [
 ]
 
 dependencies = [
-  "project-vault-core>=1.0.0",
 ]
 
 [project.optional-dependencies]

@@ -1,16 +1,16 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock, Mock
-from pv_core.b2 import B2Manager
+from src.common.b2 import B2Manager
 
 @pytest.fixture
 def mock_b2_api():
-    with patch("pv_core.b2.B2Api") as mock_api:
+    with patch("src.common.b2.B2Api") as mock_api:
         yield mock_api
 
 @pytest.fixture
 def mock_in_memory_account_info():
-    with patch("pv_core.b2.InMemoryAccountInfo") as mock_info:
+    with patch("src.common.b2.InMemoryAccountInfo") as mock_info:
         yield mock_info
 
 @pytest.fixture

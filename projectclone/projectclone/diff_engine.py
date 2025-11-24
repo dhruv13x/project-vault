@@ -6,10 +6,10 @@ from rich.syntax import Syntax
 
 # Import common modules
 try:
-    from pv_core import manifest, cas
+    from src.common import manifest, cas
 except ImportError:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-    from pv_core import manifest, cas
+    from src.common import manifest, cas
 
 def _get_latest_snapshot(vault_path: str, project_name: str):
     """Finds the path to the latest snapshot manifest for a project."""

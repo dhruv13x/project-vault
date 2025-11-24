@@ -13,7 +13,7 @@ class TestStatusFinal:
         (vault / "snapshots" / "p").mkdir()
         (vault / "snapshots" / "p" / "s1.json").write_text("{}")
 
-        with patch("pv_core.b2.B2Manager") as mock_b2:
+        with patch("src.common.b2.B2Manager") as mock_b2:
             inst = mock_b2.return_value
             # Cloud has s2.json, local has s1.json
             inst.list_file_names.return_value = ["snapshots/p/s2.json"]
@@ -28,7 +28,7 @@ class TestStatusFinal:
 
     def test_get_cloud_status_error(self, tmp_path):
         vault = tmp_path / "vault"
-        with patch("pv_core.b2.B2Manager", side_effect=Exception("Auth failed")):
+        with patch("src.common.b2.B2Manager", side_effect=Exception("Auth failed")):
             status = status_engine.get_cloud_status(str(vault), "bucket", None, "id", "key")
             assert status["error"] == "Auth failed"
             assert status["connected"] is False

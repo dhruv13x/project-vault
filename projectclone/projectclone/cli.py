@@ -144,7 +144,7 @@ def upload_to_cloud(file_path, bucket_name, endpoint=None, log_fp=None):
     Uploads the specified file to the cloud bucket.
     """
     try:
-        from pv_core import b2, s3
+        from src.common import b2, s3
     except ImportError:
         msg = "Error: Could not import 'src.common'. Cloud features require the full Project Vault environment."
         print(msg)

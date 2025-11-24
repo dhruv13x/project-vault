@@ -1,6 +1,6 @@
 import sys
 import os
-from pv_core import cas, manifest, ignore
+from src.common import cas, manifest, ignore
 
 
 def backup_to_vault(source_path: str, vault_path: str, project_name: str = None, hooks: dict = None) -> str:
@@ -18,11 +18,11 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
     """
     # Import hooks helper
     try:
-        from pv_core.hooks import run_hook
+        from src.common.hooks import run_hook
     except ImportError:
         # Fallback
         sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-        from pv_core.hooks import run_hook
+        from src.common.hooks import run_hook
 
     # --- Run Pre-Snapshot Hook ---
     if hooks and "pre_snapshot" in hooks:

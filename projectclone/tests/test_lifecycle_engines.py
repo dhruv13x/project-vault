@@ -35,7 +35,7 @@ def mock_manifest():
 
 class TestDiffEngine:
     @patch('projectclone.diff_engine._get_latest_snapshot')
-    @patch('pv_core.manifest.load_manifest')
+    @patch('src.common.manifest.load_manifest')
     @patch('os.path.exists')
     def test_show_diff_success(self, mock_exists, mock_load, mock_get_snap, mock_console, mock_manifest):
         mock_get_snap.return_value = "/vault/snapshots/proj/snap.json"
@@ -72,7 +72,7 @@ class TestDiffEngine:
         assert "No snapshots found" in str(mock_console.print.call_args)
 
     @patch('projectclone.diff_engine._get_latest_snapshot')
-    @patch('pv_core.manifest.load_manifest')
+    @patch('src.common.manifest.load_manifest')
     def test_show_diff_file_new(self, mock_load, mock_get_snap, mock_console, mock_manifest):
         mock_get_snap.return_value = "snap.json"
         mock_load.return_value = mock_manifest
@@ -92,9 +92,9 @@ class TestStatusEngine:
         assert status["total_scanned"] == 1
 
     @patch('projectclone.status_engine._get_latest_snapshot', return_value="snap.json")
-    @patch('pv_core.manifest.load_manifest')
+    @patch('src.common.manifest.load_manifest')
     @patch('os.walk')
-    @patch('pv_core.cas.calculate_hash', return_value="hash1") # Matches manifest
+    @patch('src.common.cas.calculate_hash', return_value="hash1") # Matches manifest
     def test_get_local_status_clean(self, mock_hash, mock_walk, mock_load, mock_get_snap, mock_manifest):
         mock_load.return_value = mock_manifest
         mock_walk.return_value = [(".", [], ["file1.txt"])] # Only file1 exists
@@ -131,7 +131,7 @@ class TestStatusEngine:
 
 class TestCheckoutEngine:
     @patch('projectclone.checkout_engine._get_latest_snapshot')
-    @patch('pv_core.manifest.load_manifest')
+    @patch('src.common.manifest.load_manifest')
     @patch('shutil.copy2')
     @patch('os.path.exists')
     def test_checkout_file_success(self, mock_exists, mock_copy, mock_load, mock_get_snap, mock_console_checkout, mock_manifest):
@@ -146,7 +146,7 @@ class TestCheckoutEngine:
         assert "Restored" in str(mock_console_checkout.print.call_args)
 
     @patch('projectclone.checkout_engine._get_latest_snapshot')
-    @patch('pv_core.manifest.load_manifest')
+    @patch('src.common.manifest.load_manifest')
     @patch('builtins.input', return_value='n')
     @patch('os.path.exists', return_value=True)
     def test_checkout_file_abort(self, mock_exists, mock_input, mock_load, mock_get_snap, mock_console_checkout, mock_manifest):

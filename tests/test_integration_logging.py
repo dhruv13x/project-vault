@@ -58,7 +58,7 @@ class TestFinalCoverage:
         vault = tmp_path / "vault"
         vault.mkdir()
 
-        with patch("pv_core.s3.S3Manager") as mock_s3:
+        with patch("src.common.s3.S3Manager") as mock_s3:
             inst = mock_s3.return_value
             inst.list_file_names.return_value = []
 

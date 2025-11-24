@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 import json
 import urllib.error
 
-from pv_core.notifications import TelegramNotifier
+from common.notifications import TelegramNotifier
 
 class TestTelegramNotifier(unittest.TestCase):
     def test_init_disabled(self):

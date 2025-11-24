@@ -1,6 +1,6 @@
 import os
 import pytest
-from pv_core import smart_init
+from src.common import smart_init
 
 class TestSmartInit:
     def test_smart_init_detect_python(self, tmp_path):

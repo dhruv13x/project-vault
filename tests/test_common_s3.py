@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from pv_core.s3 import S3Manager
+from common.s3 import S3Manager
 from botocore.exceptions import ClientError
 
 @pytest.fixture

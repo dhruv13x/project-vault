@@ -77,7 +77,7 @@ class TestCliExtendedV2:
         log_fp.write.assert_called()
 
     @patch("projectclone.cli.get_cloud_credentials")
-    @patch("pv_core.s3.S3Manager")
+    @patch("src.common.s3.S3Manager")
     def test_upload_to_cloud_s3_success(self, mock_s3, mock_creds, capsys):
         """Test upload_to_cloud with S3 provider."""
         mock_creds.return_value = ("s3", "key", "secret")
@@ -91,7 +91,7 @@ class TestCliExtendedV2:
         assert "Upload successful" in out
 
     @patch("projectclone.cli.get_cloud_credentials")
-    @patch("pv_core.b2.B2Manager")
+    @patch("src.common.b2.B2Manager")
     def test_upload_to_cloud_b2_failure(self, mock_b2, mock_creds, capsys):
         """Test upload_to_cloud with B2 provider failure."""
         mock_creds.return_value = ("b2", "key", "app")

@@ -42,15 +42,15 @@ sys.path.insert(0, current_dir)
 
 # Attempt to import common, handling both editable/local and installed package scenarios
 try:
-    import pv_core.config as config
+    import common.config as config
 except ImportError:
     # Fallback: try relative import if running as script/module inside src
     try:
-        from pv_core import config
+        from .common import config
     except ImportError:
         # Final fallback for some editable installs or specific layouts
         try:
-            from src.pv_core import config
+            from src.common import config
         except ImportError:
             # If all fails, assume we are running from installed package context where src is not in path
             # but the package root is.
@@ -370,12 +370,12 @@ def _real_main():
     
     # Initialize Notifier
     try:
-        from pv_core.notifications import TelegramNotifier
+        from common.notifications import TelegramNotifier
         notifier = TelegramNotifier(defaults)
     except ImportError:
         # Fallback if running in different context
         try:
-            from pv_core.notifications import TelegramNotifier
+            from common.notifications import TelegramNotifier
             notifier = TelegramNotifier(defaults)
         except ImportError:
             notifier = None

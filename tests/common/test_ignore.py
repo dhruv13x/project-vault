@@ -2,7 +2,7 @@ import pytest
 import os
 from unittest.mock import patch
 
-from pv_core import ignore
+from src.common import ignore
 
 @pytest.fixture
 def temp_project(tmp_path):

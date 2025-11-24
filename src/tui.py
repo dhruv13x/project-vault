@@ -12,7 +12,7 @@ from textual.widgets.tree import TreeNode
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
-from pv_core import manifest, cas
+from src.common import manifest, cas
 
 class ProjectVaultApp(App):
     """A Textual app for browsing Project Vault snapshots."""

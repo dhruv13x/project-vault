@@ -141,7 +141,7 @@ def download_from_cloud(bucket_name, remote_filename, local_dest, endpoint=None)
     Downloads a file from the cloud.
     """
     try:
-        from pv_core import b2, s3
+        from src.common import b2, s3
     except ImportError:
         # Try relative import if we are inside the pv structure
         try:
@@ -154,7 +154,7 @@ def download_from_cloud(bucket_name, remote_filename, local_dest, endpoint=None)
             # So we need to go up 3 levels to project_vault, then into src
             root = current.parents[2]
             sys.path.insert(0, str(root / "src"))
-            from pv_core import b2, s3
+            from src.common import b2, s3
         except ImportError:
             LOG.error("Could not import 'src.common'. Cloud features require the full Project Vault environment.")
             return False

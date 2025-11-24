@@ -3,7 +3,7 @@ import os
 import tempfile
 import shutil
 import zstandard as zstd
-from pv_core import cas
+from common import cas
 
 class TestZstdCompression(unittest.TestCase):
     def setUp(self):

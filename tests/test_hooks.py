@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import subprocess
-from pv_core import hooks
+from common import hooks
 
 class TestHooks(unittest.TestCase):
     @patch("subprocess.Popen")
