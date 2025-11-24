@@ -30,6 +30,26 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.theme import Theme
+
+# Try to import RichHelpFormatter for better help output
+try:
+    from rich_argparse import RichHelpFormatter
+except ImportError:
+    RichHelpFormatter = argparse.HelpFormatter
+
+# Define custom theme
+custom_theme = Theme({
+    "info": "cyan",
+    "warning": "yellow",
+    "error": "bold red",
+    "success": "bold green",
+    "command": "bold magenta",
+})
+console = Console(theme=custom_theme)
 
 from .backup import (
     atomic_move,
@@ -44,6 +64,48 @@ from .scanner import walk_stats
 from .utils import sanitize_token, timestamp, human_size, ensure_dir, make_unique_path
 from .banner import print_logo
 from . import cas_engine
+
+
+def print_clone_help():
+    """Prints the help panel for the clone/backup command using rich."""
+    help_text = Text.from_markup(
+        """
+This command creates a backup of a project. It can operate in three main modes:
+1. [bold]Folder Copy (default):[/bold] Creates a direct copy of the project.
+2. [bold]Archive Mode (--archive):[/bold] Creates a compressed `.tar.gz` archive.
+3. [bold]Incremental Mode (--incremental):[/bold] Uses `rsync` to efficiently update a backup.
+
+[bold green]Usage Examples:[/bold green]
+  [cyan]pv clone <note>[/cyan]                     Create a simple folder backup.
+  [cyan]pv clone <note> --archive[/cyan]           Create a compressed tarball.
+  [cyan]pv clone <note> --incremental[/cyan]      Create an rsync-based incremental backup.
+  [cyan]pv clone <note> --cloud --bucket mybucket[/cyan] Create backup and upload to the cloud.
+
+[bold green]Key Options:[/bold green]
+  [yellow]--dest <PATH>[/yellow]         Base destination folder for backups.
+  [yellow]--keep <N>[/yellow]            Keep only the N newest backups for this project.
+  [yellow]--exclude <PATTERN>[/yellow]   Exclude files/dirs matching the pattern.
+  [yellow]--manifest-sha[/yellow]       Generate SHA256 checksums for all files (slower).
+  [yellow]--yes[/yellow]                 Skip the confirmation prompt.
+  [yellow]--dry-run[/yellow]              Simulate the backup without writing files.
+"""
+    )
+    panel = Panel(
+        help_text,
+        title="[bold magenta]Help: `pv clone` (Backup Command)[/bold magenta]",
+        border_style="blue",
+    )
+    console.print(panel)
+
+
+class RichHelpAction(argparse.Action):
+    """A custom argparse action to show a rich-formatted help panel and exit."""
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print_clone_help()
+        parser.exit()
 
 
 def get_cloud_credentials():
@@ -149,7 +211,7 @@ def upload_to_cloud(file_path, bucket_name, endpoint=None, log_fp=None):
 
 
 def vault_main():
-    parser = argparse.ArgumentParser(prog="projectclone vault", description="Backup to content-addressable vault")
+    parser = argparse.ArgumentParser(prog="projectclone vault", description="Backup to content-addressable vault", formatter_class=RichHelpFormatter)
     parser.add_argument("source", nargs="?", default=".", help="The project directory to backup")
     parser.add_argument("vault_path", help="The destination directory for the vault")
     args = parser.parse_args(sys.argv[2:])
@@ -159,14 +221,18 @@ def vault_main():
         vault_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.vault_path)))
         cas_engine.backup_to_vault(source_path, vault_path)
     except Exception as e:
-        print(f"Error: {e}")
+        console.print(f"[error]Error: {e}[/error]")
         sys.exit(1)
 
 
 def parse_args():
     default_dest = Path.home() / "project_backups"
-    p = argparse.ArgumentParser(description="Backup current directory into a destination folder")
-    p.add_argument("short_note", help="short note to append to backup folder (e.g. 1000_pytests_passed)")
+    p = argparse.ArgumentParser(
+        description="Backup current directory into a destination folder",
+        add_help=False # Disable default help
+    )
+    p.add_argument('-h', '--help', action=RichHelpAction, help='Show this help message and exit.')
+    p.add_argument("short_note", nargs="?", default=None, help="short note to append to backup folder (e.g. 1000_pytests_passed)")
     p.add_argument("--dest", default=str(default_dest), help="base destination folder (default: ~/project_backups)")
     p.add_argument("-a", "--archive", action="store_true", help="create compressed tar.gz archive instead of folder")
     p.add_argument("--manifest", action="store_true", help="write MANIFEST.txt (sizes only)")
@@ -185,7 +251,20 @@ def parse_args():
     p.add_argument(
         "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
     )
-    return p.parse_args()
+    
+    # A simple check to show help if no arguments are given.
+    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] == '-h'):
+        print_clone_help()
+        sys.exit(0)
+        
+    args = p.parse_args()
+
+    if not args.short_note:
+        console.print("[bold red]Error:[/bold red] The 'short_note' argument is required.")
+        print_clone_help()
+        sys.exit(1)
+
+    return args
 
 
 def main():

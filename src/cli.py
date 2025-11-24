@@ -7,7 +7,27 @@ import base64
 import json
 import urllib.request
 from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.theme import Theme
+
+# Try to import RichHelpFormatter for better help output
+try:
+    from rich_argparse import RichHelpFormatter
+except ImportError:
+    RichHelpFormatter = argparse.HelpFormatter
+
 import pdb # Added for debugging
+
+# Define custom theme
+custom_theme = Theme({
+    "info": "cyan",
+    "warning": "yellow",
+    "error": "bold red",
+    "success": "bold green",
+    "command": "bold magenta",
+})
+console = Console(theme=custom_theme)
 
 # Ensure we can import sibling packages
 # We are in src/
@@ -54,8 +74,7 @@ def inject_doppler_secrets():
     if not token:
         return
 
-    console = Console()
-    console.print("[bold cyan]🔮 Doppler Token detected. Fetching secrets...[/bold cyan]")
+    console.print(Panel("🔮 Doppler Token detected. Fetching secrets...", title="Doppler Integration", border_style="cyan"))
 
     url = "https://api.doppler.com/v3/configs/config/secrets/download?format=json"
     req = urllib.request.Request(url)
@@ -79,16 +98,16 @@ def inject_doppler_secrets():
                     os.environ[key] = str(value)
                     count += 1
             
-            console.print(f"[green]✅ Loaded {count} secrets from Doppler.[/green]")
+            console.print(f"[success]✅ Loaded {count} secrets from Doppler.[/success]")
     except Exception as e:
-        console.print(f"[red]❌ Failed to load Doppler secrets: {e}[/red]")
+        console.print(f"[error]❌ Failed to load Doppler secrets: {e}[/error]")
 
 
 def get_credentials(provider=None):
     """
     Resolves cloud credentials with precedence:
     1. PV_ prefixed variables (PV_AWS_..., PV_B2_...)
-    2. Standard variables (AWS_..., B2_...)
+    2. Standard variables (AWS_..., B2_...) 
     
     Returns:
         (key_id, app_key/secret_key)
@@ -131,8 +150,7 @@ def get_credentials(provider=None):
 
 
 def check_cloud_env():
-    console = Console()
-    console.print("[bold]Checking Cloud Environment Configuration...[/bold]")
+    status_text = Text()
     
     # Check B2
     b2_key_pv = os.environ.get("PV_B2_KEY_ID")
@@ -141,11 +159,11 @@ def check_cloud_env():
     b2_app_std = os.environ.get("B2_APP_KEY")
     
     if b2_key_pv and b2_app_pv:
-        console.print("[green]✅ Found PV-prefixed B2 Credentials (PV_B2_KEY_ID, PV_B2_APP_KEY)[/green]")
+        status_text.append("✅ Found PV-prefixed B2 Credentials (PV_B2_KEY_ID, PV_B2_APP_KEY)\n", style="success")
     elif b2_key_std and b2_app_std:
-        console.print("[green]✅ Found Standard B2 Credentials (B2_KEY_ID, B2_APP_KEY)[/green]")
+        status_text.append("✅ Found Standard B2 Credentials (B2_KEY_ID, B2_APP_KEY)\n", style="success")
     else:
-        console.print("[yellow]⚠️  Missing B2 Credentials[/yellow]")
+        status_text.append("⚠️  Missing B2 Credentials\n", style="warning")
 
     # Check AWS/S3
     aws_key_pv = os.environ.get("PV_AWS_ACCESS_KEY_ID")
@@ -154,30 +172,182 @@ def check_cloud_env():
     aws_secret_std = os.environ.get("AWS_SECRET_ACCESS_KEY")
     
     if aws_key_pv and aws_secret_pv:
-        console.print("[green]✅ Found PV-prefixed AWS/S3 Credentials (PV_AWS_ACCESS_KEY_ID, PV_AWS_SECRET_ACCESS_KEY)[/green]")
+        status_text.append("✅ Found PV-prefixed AWS/S3 Credentials (PV_AWS_ACCESS_KEY_ID, PV_AWS_SECRET_ACCESS_KEY)\n", style="success")
     elif aws_key_std and aws_secret_std:
-        console.print("[green]✅ Found Standard AWS/S3 Credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)[/green]")
+        status_text.append("✅ Found Standard AWS/S3 Credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)\n", style="success")
     else:
-        console.print("[yellow]⚠️  Missing AWS/S3 Credentials[/yellow]")
+        status_text.append("⚠️  Missing AWS/S3 Credentials\n", style="warning")
 
     if not (b2_key_pv or b2_key_std) and not (aws_key_pv or aws_key_std):
-        console.print("\n[red]❌ No cloud credentials found.[/red]")
-        console.print("   [yellow]To use Cloud features, export either B2 or AWS credentials.[/yellow]")
-        console.print("   [dim]Tip: Prefix with PV_ to isolate credentials for this tool (e.g. PV_AWS_ACCESS_KEY_ID).[/dim]")
+        status_text.append("\n❌ No cloud credentials found.\n", style="error")
+        status_text.append("   To use Cloud features, export either B2 or AWS credentials.\n", style="warning")
+        status_text.append("   Tip: Prefix with PV_ to isolate credentials for this tool (e.g. PV_AWS_ACCESS_KEY_ID).", style="dim")
 
+    # Check Libraries
+    status_text.append("\nLibrary Status:\n", style="bold underline")
     try:
         import boto3
-        console.print("[green]✅ boto3 is installed[/green]")
+        status_text.append("✅ boto3 is installed\n", style="success")
     except ImportError:
-        console.print("[red]❌ boto3 is missing[/red]")
-        console.print("   [yellow]Run:[/yellow] pip install boto3")
+        status_text.append("❌ boto3 is missing (Run: pip install boto3)\n", style="error")
     
     try:
         import b2sdk
-        console.print("[green]✅ b2sdk is installed[/green]")
+        status_text.append("✅ b2sdk is installed\n", style="success")
     except ImportError:
-        console.print("[red]❌ b2sdk is missing[/red]")
-        console.print("   [yellow]Run:[/yellow] pip install b2sdk")
+        status_text.append("❌ b2sdk is missing (Run: pip install b2sdk)\n", style="error")
+
+    console.print(Panel(status_text, title="Cloud Environment Configuration", border_style="blue"))
+
+
+# --- Help Panel Functions ---
+
+def print_vault_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv vault[/] [yellow][source] [vault_path][/] [magenta][--name <name>]
+
+Creates a content-addressable snapshot of the [yellow]source[/] directory (default: current dir) into the [yellow]vault_path[/].
+
+[bold]Arguments:[/bold]
+  [yellow]source[/]          Source directory to back up. Defaults to '.'.
+  [yellow]vault_path[/]      Destination vault directory. Can be set in config.
+  [yellow]--name <name>[/]    Set a custom project name for the snapshot.
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv vault`[/]", border_style="blue"))
+
+def print_vault_restore_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv vault-restore[/] [yellow]<manifest> <dest>
+
+Restores a project from a snapshot's [yellow]manifest.json[/] file to the [yellow]dest[/] directory.
+
+[bold]Arguments:[/bold]
+  [yellow]manifest[/]        Path to the `manifest.json` file of the snapshot to restore.
+  [yellow]dest[/]            Directory to restore the project into.
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv vault-restore`[/]", border_style="blue"))
+
+def print_push_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv push[/] [yellow][vault_path][/] [magenta][--bucket <B>] [--endpoint <E>] [--dry-run][/]
+
+Pushes the contents of the local vault to cloud storage (S3/B2).
+
+[bold]Arguments:[/bold]
+  [yellow]vault_path[/]      Path to the local vault. Can be set in config.
+  [yellow]--bucket <B>[/]     Target cloud bucket name. Required.
+  [yellow]--endpoint <E>[/]   (Optional) Cloud endpoint URL for S3-compatible services.
+  [yellow]--dry-run[/]         Simulate the push without uploading files.
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv push`[/]", border_style="blue"))
+
+def print_pull_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv pull[/] [yellow][vault_path][/] [magenta][--bucket <B>] [--endpoint <E>] [--dry-run][/]
+
+Pulls missing objects from cloud storage into the local vault.
+
+[bold]Arguments:[/bold]
+  [yellow]vault_path[/]      Path to the local vault. Can be set in config.
+  [yellow]--bucket <B>[/]     Target cloud bucket name. Required.
+  [yellow]--endpoint <E>[/]   (Optional) Cloud endpoint URL for S3-compatible services.
+  [yellow]--dry-run[/]         Simulate the pull without downloading files.
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv pull`[/]", border_style="blue"))
+
+def print_list_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv list[/] [yellow][vault_path][/] [magenta][--cloud] [--bucket <B>] ...[/]
+
+Lists available snapshots, either locally or in the cloud.
+
+[bold]Arguments:[/bold]
+  [yellow]vault_path[/]      Path to the local vault for local listings.
+  [yellow]--cloud[/]         List snapshots from the cloud instead of locally.
+  [yellow]--bucket <B>[/]     Cloud bucket to list from (required for --cloud).
+  [yellow]--limit <N>[/]      Show only the top N snapshots. Default: 10.
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv list`[/]", border_style="blue"))
+
+# Define more print_..._help() functions for other commands here...
+
+# --- Custom Argparse Actions ---
+
+class RichVaultHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_vault_help(); p.exit()
+
+class RichVaultRestoreHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_vault_restore_help(); p.exit()
+
+class RichPushHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_push_help(); p.exit()
+
+class RichPullHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_pull_help(); p.exit()
+
+class RichListHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_list_help(); p.exit()
+
+# Define more Rich...HelpAction classes for other commands here...
+
+
+def print_main_help():
+    """Prints the main help panel using rich."""
+    grid = Text.from_markup(
+        """
+[bold green]Usage:[/] [cyan]pv[/] [yellow]<command>[/] [magenta][<args>...][/]
+
+[bold green]Core Commands[/bold green]
+  [cyan]backup[/cyan]          Create a new backup of a project (legacy file-based).
+  [cyan]archive-restore[/cyan] Restore a project from a legacy file-based backup.
+  [cyan]vault[/cyan]          Create a new content-addressable snapshot of a project.
+  [cyan]vault-restore[/cyan]  Restore a project from a vault snapshot.
+
+[bold green]Cloud Commands[/bold green]
+  [cyan]push[/cyan]           Push vault contents to cloud storage (S3/B2).
+  [cyan]pull[/cyan]           Pull vault contents from cloud storage.
+  [cyan]list --cloud[/cyan]   List snapshots available in the cloud.
+
+[bold green]Local & Maintenance Commands[/bold green]
+  [cyan]status[/cyan]         Show workspace and vault status vs last snapshot.
+  [cyan]list[/cyan]           List local snapshots.
+  [cyan]diff[/cyan]           Show changes between workspace and a file in the snapshot.
+  [cyan]checkout[/cyan]      Restore a specific file from the last snapshot.
+  [cyan]gc[/cyan]             Clean up orphaned objects from the vault.
+  [cyan]check-integrity[/cyan] Verify the integrity of the local vault.
+  [cyan]init[/cyan]            Create a default `pv.toml` configuration file.
+  [cyan]check-env[/cyan]      Verify cloud environment variables are set.
+
+[bold green]Global Options[/bold green]
+  [yellow]-h, --help[/yellow]      Show this help message and exit.
+  [yellow]-v, --version[/yellow]   Show program's version number and exit.
+"""
+    )
+    panel = Panel(
+        grid,
+        title="[bold magenta]Project Vault[/bold magenta] - The Unified Project Lifecycle Manager",
+        subtitle="[default]Run '[cyan]pv <command> --help[/cyan]' for details on a command's flags.",
+        border_style="blue",
+    )
+    console.print(panel)
+
+
+class RichHelpAction(argparse.Action):
+    """
+    A custom argparse action to show a rich-formatted help panel and exit.
+    """
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print_main_help()
+        parser.exit()
+
 
 def main():
     # 1. Inject Doppler Secrets (Environment Override)
@@ -198,166 +368,152 @@ def main():
         defaults["restore_path"] = os.environ["PV_RESTORE_PATH"]
 
     # Hijack for pass-through commands to avoid argparse issues with flags like --help
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "backup":
-            try:
-                from projectclone import cli as clone_cli
-            except ImportError as e:
-                print(f"Error executing command 'backup': {e}")
-                sys.exit(1)
+    # Note: 'clone' and 'restore' are the new preferred names for the sub-tools.
+    if len(sys.argv) > 1 and sys.argv[1] in ["backup", "archive-restore"]:
+        subcommand = sys.argv[1]
+        try:
+            module_name = "projectclone" if subcommand == "backup" else "projectrestore"
+            cli_module = importlib.import_module(f"{module_name}.cli")
+        except ImportError as e:
+            console.print(f"[error]Error executing command '{subcommand}': {e}[/error]")
+            sys.exit(1)
 
-            # Transform argv from ['pv', 'backup', ...] to ['projectclone', ...]
-            sys.argv[0] = "projectclone"
-            del sys.argv[1]
-            
-            # Inject vault_path from config if --dest is missing
-            if defaults.get("vault_path") and "--dest" not in sys.argv:
-                sys.argv.extend(["--dest", defaults["vault_path"]])
-            
-            # Inject bucket/endpoint if available in config
-            if defaults.get("bucket") and "--bucket" not in sys.argv:
-                sys.argv.extend(["--bucket", defaults["bucket"]])
-            
-            if defaults.get("endpoint") and "--endpoint" not in sys.argv:
-                sys.argv.extend(["--endpoint", defaults["endpoint"]])
-                
-            clone_cli.main()
-            sys.exit(0)
-            return
-        elif sys.argv[1] == "archive-restore":
-            try:
-                from projectrestore import cli as restore_cli
-            except ImportError as e:
-                print(f"Error executing command 'archive-restore': {e}")
-                sys.exit(1)
+        # Reconstruct argv for the sub-tool
+        sys.argv[0] = module_name
+        del sys.argv[1]
 
-            sys.argv[0] = "projectrestore"
-            del sys.argv[1]
-            restore_cli.main()
-            sys.exit(0)
-            return
+        # Inject config values if not present in args
+        if defaults.get("vault_path") and "--dest" not in sys.argv:
+            sys.argv.extend(["--dest", defaults["vault_path"]])
+        if defaults.get("bucket") and "--bucket" not in sys.argv:
+            sys.argv.extend(["--bucket", defaults["bucket"]])
+        if defaults.get("endpoint") and "--endpoint" not in sys.argv:
+            sys.argv.extend(["--endpoint", defaults["endpoint"]])
+            
+        cli_module.main()
+        return
+
 
     parser = argparse.ArgumentParser(
         prog="pv",
         description="Project Vault: The Unified Project Lifecycle Manager",
-        epilog="Use 'pv <command> --help' for more information on a specific command."
+        add_help=False # We are using our own help action
+    )
+    parser.add_argument(
+        '-h', '--help', 
+        action=RichHelpAction, 
+        help='Show this help message and exit.'
+    )
+    parser.add_argument(
+        '-v', '--version',
+        action='version',
+        version='%(prog)s 2.0.0', # Placeholder version
+        help="Show program's version number and exit."
     )
     
     subparsers = parser.add_subparsers(dest="command", title="Available Commands")
     
-    # --- Backup Command ---
-    backup_parser = subparsers.add_parser("backup", help="Create backups (full, incremental, archive)")
+    # Define subparsers with RichHelpFormatter for their own help messages
+    backup_parser = subparsers.add_parser("backup", help="Create backups (legacy file-based). Pass -h for more.", add_help=False)
     backup_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments for projectclone")
 
-    # --- Archive Restore Command ---
-    archive_restore_parser = subparsers.add_parser("archive-restore", help="Safely restore archive backups")
+    archive_restore_parser = subparsers.add_parser("archive-restore", help="Safely restore legacy archive backups. Pass -h for more.", add_help=False)
     archive_restore_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments for projectrestore")
-
+    
     # --- Vault Command ---
-    vault_parser = subparsers.add_parser("vault", help="Content-Addressable Backup to Vault")
-    vault_parser.add_argument("source", nargs="?", default=".", help="Source directory")
-    vault_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Vault destination path")
+    vault_parser = subparsers.add_parser("vault", add_help=False)
+    vault_parser.add_argument("-h", "--help", action=RichVaultHelpAction)
+    vault_parser.add_argument("source", nargs="?", default=".")
+    vault_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
     vault_parser.add_argument("--name", help="Project name for organizing snapshots (default: source directory name)")
 
     # --- Vault Restore Command ---
-    vault_restore_parser = subparsers.add_parser("vault-restore", help="Restore from Vault Manifest")
+    vault_restore_parser = subparsers.add_parser("vault-restore", add_help=False)
+    vault_restore_parser.add_argument("-h", "--help", action=RichVaultRestoreHelpAction)
     vault_restore_parser.add_argument("manifest", help="Path to manifest.json")
-    vault_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"), help="Destination directory")
+    vault_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"))
 
     # --- Push Command ---
-    push_parser = subparsers.add_parser("push", help="Push Vault to Cloud Storage (S3/B2)")
-    push_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
-    push_parser.add_argument("--bucket", default=defaults.get("bucket"), help="Target S3/B2 Bucket Name")
-    push_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="S3/B2 Endpoint URL")
-    push_parser.add_argument("--dry-run", action="store_true", help="Simulate push without uploading")
+    push_parser = subparsers.add_parser("push", add_help=False)
+    push_parser.add_argument("-h", "--help", action=RichPushHelpAction)
+    push_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
+    push_parser.add_argument("--bucket", default=defaults.get("bucket"))
+    push_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
+    push_parser.add_argument("--dry-run", action="store_true")
 
     # --- Pull Command ---
-    pull_parser = subparsers.add_parser("pull", help="Download missing backups from Cloud (S3/B2)")
-    pull_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
-    pull_parser.add_argument("--bucket", default=defaults.get("bucket"), help="Target S3/B2 Bucket Name")
-    pull_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="S3/B2 Endpoint URL")
-    pull_parser.add_argument("--dry-run", action="store_true", help="Simulate pull without downloading")
+    pull_parser = subparsers.add_parser("pull", add_help=False)
+    pull_parser.add_argument("-h", "--help", action=RichPullHelpAction)
+    pull_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
+    pull_parser.add_argument("--bucket", default=defaults.get("bucket"))
+    pull_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
+    pull_parser.add_argument("--dry-run", action="store_true")
 
     # --- Integrity Check Command ---
-    integrity_parser = subparsers.add_parser("check-integrity", help="Verify local vault health")
+    integrity_parser = subparsers.add_parser("check-integrity", help="Verify local vault health", formatter_class=RichHelpFormatter)
     integrity_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
 
     # --- Garbage Collection Command ---
-    gc_parser = subparsers.add_parser("gc", help="Clean up orphaned objects")
+    gc_parser = subparsers.add_parser("gc", help="Clean up orphaned objects", formatter_class=RichHelpFormatter)
     gc_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
     gc_parser.add_argument("--dry-run", action="store_true", help="Simulate deletion without removing files")
 
     # --- Init Command ---
-    init_parser = subparsers.add_parser("init", help="Initialize configuration")
+    init_parser = subparsers.add_parser("init", help="Initialize configuration", formatter_class=RichHelpFormatter)
     init_parser.add_argument("--pyproject", action="store_true", help="Print configuration for pyproject.toml instead of creating pv.toml")
 
     # --- Status Command ---
-    status_parser = subparsers.add_parser("status", help="Show workspace and vault status")
+    status_parser = subparsers.add_parser("status", help="Show workspace and vault status", formatter_class=RichHelpFormatter)
     status_parser.add_argument("source", nargs="?", default=".", help="Source directory")
     status_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
     status_parser.add_argument("--bucket", default=defaults.get("bucket"), help="Target Cloud Bucket")
     status_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="Cloud Endpoint")
 
     # --- Diff Command ---
-    diff_parser = subparsers.add_parser("diff", help="Show changes between workspace and snapshot")
+    diff_parser = subparsers.add_parser("diff", help="Show changes between workspace and snapshot", formatter_class=RichHelpFormatter)
     diff_parser.add_argument("file", help="The file to compare")
     diff_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
 
     # --- Checkout Command ---
-    checkout_parser = subparsers.add_parser("checkout", help="Restore a specific file from snapshot")
+    checkout_parser = subparsers.add_parser("checkout", help="Restore a specific file from snapshot", formatter_class=RichHelpFormatter)
     checkout_parser.add_argument("file", help="The file to restore")
     checkout_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
     checkout_parser.add_argument("-f", "--force", action="store_true", help="Overwrite without confirmation")
 
     # --- List Command ---
-    list_parser = subparsers.add_parser("list", help="List available snapshots locally or in the cloud")
-    list_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault (optional)")
-    list_parser.add_argument("--cloud", action="store_true", help="List backups in Cloud (B2/S3)")
-    list_parser.add_argument("--bucket", default=defaults.get("bucket"), help="Target Bucket Name (optional)")
-    list_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="S3/B2 Endpoint URL")
-    list_parser.add_argument("--limit", type=int, default=10, help="Show only top N backups per project")
+    list_parser = subparsers.add_parser("list", add_help=False)
+    list_parser.add_argument("-h", "--help", action=RichListHelpAction)
+    list_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
+    list_parser.add_argument("--cloud", action="store_true")
+    list_parser.add_argument("--bucket", default=defaults.get("bucket"))
+    list_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
+    list_parser.add_argument("--limit", type=int, default=10)
 
     # --- Cloud Env Check Command ---
-    subparsers.add_parser("check-env", help="Verify Cloud Environment Variables (S3/B2)")
+    subparsers.add_parser("check-env", help="Verify Cloud Environment Variables (S3/B2)", formatter_class=RichHelpFormatter)
 
-    args = parser.parse_args()
 
-    if not args.command:
-        parser.print_help()
+    # Simplified entry point: if no command is given, show our rich help.
+    if len(sys.argv) == 1:
+        print_main_help()
+        sys.exit(0)
+
+    args, unknown = parser.parse_known_args()
+
+    if not hasattr(args, 'command') or not args.command:
+        # This handles cases where only flags like -v are passed
+        # without a command. We show help and exit.
+        print_main_help()
         sys.exit(0)
 
     # Dispatch logic
     try:
-        if args.command == "backup":
-            from projectclone import cli as clone_cli
-            # Hacky: Adjust sys.argv so argparse in the sub-tool sees what it expects
-            sys.argv = ["projectclone"] + args.args
-            clone_cli.main()
-            
-        elif args.command == "archive-restore":
-            try:
-                from projectrestore import cli as restore_cli
-            except ImportError as e:
-                print(f"Error executing command 'archive-restore': {e}")
-                sys.exit(1)
-            
-            # Inject bucket/endpoint if available in config
-            if defaults.get("bucket") and "--bucket" not in args.args:
-                args.args.extend(["--bucket", defaults["bucket"]])
-            
-            if defaults.get("endpoint") and "--endpoint" not in args.args:
-                args.args.extend(["--endpoint", defaults["endpoint"]])
-
-            sys.argv = ["projectrestore"] + args.args
-            restore_cli.main()
-            sys.exit(0)
-            return
-            
-        elif args.command == "vault":
+        # The clone/restore commands are handled by the special block at the top.
+        # This section handles the direct commands.
+        if args.command == "vault":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
-                return
             
             source_abs = resolve_path(args.source)
             project_name = args.name or os.path.basename(source_abs)
@@ -367,7 +523,7 @@ def main():
 
         elif args.command == "vault-restore":
             if not args.dest:
-                print("Error: Destination directory must be specified in CLI or 'restore_path' in pv.toml")
+                console.print("[error]Error: Destination directory must be specified in CLI or 'restore_path' in pv.toml[/error]")
                 sys.exit(1)
             from projectrestore import restore_engine
             restore_engine.restore_snapshot(resolve_path(args.manifest), resolve_path(args.dest))
@@ -383,7 +539,7 @@ def main():
 
         elif args.command == "status":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
 
             from projectclone import status_engine
@@ -407,11 +563,9 @@ def main():
 
         elif args.command == "diff":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
             
-            # Heuristic: Assume current directory is source root unless user provides a way to specify it.
-            # Ideally, we'd traverse up to find a marker, but for now, CWD is a safe assumption for simple usage.
             source_root = os.getcwd()
             
             from projectclone import diff_engine
@@ -423,7 +577,7 @@ def main():
 
         elif args.command == "checkout":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
             
             source_root = os.getcwd()
@@ -440,36 +594,36 @@ def main():
             from projectclone import list_engine
             if args.cloud:
                 if not args.bucket:
-                    print("Error: --bucket must be specified in CLI or pv.toml for cloud listing.")
+                    console.print("[error]Error: --bucket must be specified in CLI or pv.toml for cloud listing.[/error]")
                     sys.exit(1)
                 
                 key_id, app_key = get_credentials()
 
                 if not key_id or not app_key:
-                    print("Error: Cloud credentials missing.")
-                    print("Set PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (preferred) or standard AWS_.../B2_... variables.")
+                    console.print("[error]Error: Cloud credentials missing.[/error]")
+                    console.print("Set PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (preferred) or standard AWS_.../B2_... variables.")
                     sys.exit(1)
                 
                 list_engine.list_cloud_snapshots(args.bucket, key_id, app_key, getattr(args, 'endpoint', None))
             else:
                 if not args.vault_path:
-                    print("Error: vault_path must be specified in CLI or pv.toml for local listing.")
+                    console.print("[error]Error: vault_path must be specified in CLI or pv.toml for local listing.[/error]")
                     sys.exit(1)
                 list_engine.list_local_snapshots(resolve_path(args.vault_path))
 
         elif args.command == "push":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
             if not args.bucket:
-                print("Error: Bucket must be specified in CLI or pyproject.toml")
+                console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
                 sys.exit(1)
             
             key_id, app_key = get_credentials()
             
             if not key_id or not app_key:
-                print("Error: Cloud credentials missing.")
-                print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
+                console.print("[error]Error: Cloud credentials missing.[/error]")
+                console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
                 sys.exit(1)
                 
             from projectclone import sync_engine
@@ -484,17 +638,17 @@ def main():
 
         elif args.command == "pull":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
             if not args.bucket:
-                print("Error: Bucket must be specified in CLI or pyproject.toml")
+                console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
                 sys.exit(1)
 
             key_id, app_key = get_credentials()
             
             if not key_id or not app_key:
-                print("Error: Cloud credentials missing.")
-                print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
+                console.print("[error]Error: Cloud credentials missing.[/error]")
+                console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
                 sys.exit(1)
                 
             from projectclone import sync_engine
@@ -509,7 +663,7 @@ def main():
             
         elif args.command == "check-integrity":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
             from projectclone import integrity_engine
             if not integrity_engine.verify_vault(resolve_path(args.vault_path)):
@@ -517,7 +671,7 @@ def main():
                 
         elif args.command == "gc":
             if not args.vault_path:
-                print("Error: vault_path must be specified in CLI or pv.toml")
+                console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
                 sys.exit(1)
             from projectclone import gc_engine
             gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
@@ -526,10 +680,13 @@ def main():
             check_cloud_env()
 
     except Exception as e:
-        print(f"Error executing command '{args.command}': {e}")
+        console.print(f"[error]Error executing command '{args.command}': {e}[/error]")
+        # For debugging, re-raise in a verbose mode
+        # import traceback
+        # traceback.print_exc()
         sys.exit(1)
     except KeyboardInterrupt:
-        print("\nInterrupted.")
+        console.print("\n[warning]Interrupted.[/warning]")
         sys.exit(130)
 
 if __name__ == "__main__":

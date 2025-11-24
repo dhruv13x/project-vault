@@ -33,6 +33,27 @@ import logging
 import sys
 import os
 from pathlib import Path
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.panel import Panel
+from rich.text import Text
+from rich.theme import Theme
+
+# Try to import RichHelpFormatter for better help output
+try:
+    from rich_argparse import RichHelpFormatter
+except ImportError:
+    RichHelpFormatter = argparse.HelpFormatter
+
+# Define custom theme
+custom_theme = Theme({
+    "info": "cyan",
+    "warning": "yellow",
+    "error": "bold red",
+    "success": "bold green",
+    "command": "bold magenta",
+})
+console = Console(theme=custom_theme)
 
 from projectrestore.modules.checksum import verify_sha256_from_file
 from projectrestore.modules.extraction import safe_extract_atomic
@@ -46,6 +67,46 @@ LOG = logging.getLogger("extract_backup")
 DEFAULT_BACKUP_DIR = Path.home() / "project_backups"
 DEFAULT_PATTERN = "*-bot_platform-*.tar.gz"
 DEFAULT_LOCKFILE = Path("/tmp/extract_backup.pid")
+
+
+def print_restore_help():
+    """Prints the help panel for the restore command using rich."""
+    help_text = Text.from_markup(
+        """
+This command safely restores a project from a `.tar.gz` archive created by `pv clone --archive`.
+
+[bold green]Usage Examples:[/bold green]
+  [cyan]pv restore[/cyan]                          Restore the latest backup from the default location.
+  [cyan]pv restore --file backup.tar.gz[/cyan]     Restore a specific archive file.
+  [cyan]pv restore --cloud --bucket B --file F[/cyan]  Download from cloud and restore.
+  [cyan]pv restore --dry-run[/cyan]                Validate an archive without extracting it.
+
+[bold green]Key Options:[/bold green]
+  [yellow]--backup-dir <PATH>[/yellow]     Directory containing the local backups.
+  [yellow]--extract-dir <PATH>[/yellow]    Directory to extract the project to.
+  [yellow]--file <FILENAME>[/yellow]       Specify a particular backup archive to restore.
+  [yellow]--checksum <FILE>[/yellow]       Verify archive integrity with a `.sha256` file.
+  [yellow]--cloud[/yellow]                 Download the specified --file from cloud storage.
+  [yellow]--bucket <NAME>[/yellow]         Cloud bucket name (required for --cloud).
+  [yellow]--dry-run[/yellow]               Validate the archive without writing any files.
+"""
+    )
+    panel = Panel(
+        help_text,
+        title="[bold magenta]Help: `pv restore` (Restore Command)[/bold magenta]",
+        border_style="blue",
+    )
+    console.print(panel)
+
+
+class RichHelpAction(argparse.Action):
+    """A custom argparse action to show a rich-formatted help panel and exit."""
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print_restore_help()
+        parser.exit()
 
 
 def get_cloud_credentials():
@@ -124,7 +185,7 @@ def download_from_cloud(bucket_name, remote_filename, local_dest, endpoint=None)
 
 
 def vault_restore_main() -> None:
-    parser = argparse.ArgumentParser(prog="projectrestore vault-restore", description="Restore from content-addressable vault")
+    parser = argparse.ArgumentParser(prog="projectrestore vault-restore", description="Restore from content-addressable vault", formatter_class=RichHelpFormatter)
     parser.add_argument("manifest", help="Path to the snapshot manifest file")
     parser.add_argument("dest", help="Destination directory to restore to")
     args = parser.parse_args(sys.argv[2:])
@@ -134,18 +195,26 @@ def vault_restore_main() -> None:
         dest_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.dest)))
         restore_engine.restore_snapshot(manifest_path, dest_path)
     except Exception as e:
-        print(f"Error: {e}")
+        console.print(f"[error]Error: {e}[/error]")
         sys.exit(1)
 
 
 # ---------------- CLI ----------------
 def setup_logging(level: int = logging.INFO) -> None:
-    fmt = "%(asctime)s %(levelname)s: %(message)s"
-    logging.basicConfig(level=level, format=fmt)
+    logging.basicConfig(
+        level=level,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(console=console, rich_tracebacks=True)]
+    )
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Safely extract latest bot_platform backup")
+    p = argparse.ArgumentParser(
+        description="Safely extract latest bot_platform backup",
+        add_help=False # Disable default help
+    )
+    p.add_argument('-h', '--help', action=RichHelpAction, help='Show this help message and exit.')
     p.add_argument(
         "--backup-dir",
         "-b",
@@ -212,6 +281,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
     )
+    
+    # If no arguments are given (or only -h), show the custom help
+    if len(sys.argv) <= 1:
+        print_restore_help()
+        sys.exit(0)
+
     return p.parse_args()
 
 

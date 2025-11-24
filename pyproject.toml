@@ -47,16 +47,19 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-# All projects use src/ layout
-pythonpath = ["src"]
+pythonpath = [
+  ".",          # root packages: projectclone, projectrestore
+  "src",        # src-based modules
+]
 
-# All tests live under tests/
-testpaths = ["tests"]
+testpaths = [
+  "tests",
+  "projectclone/tests",
+  "projectrestore/tests",
+]
 
-# Async projects are common in your stack
 asyncio_mode = "auto"
 
-# Global pytest options
 addopts = [
   "-v",
   "-ra",
@@ -70,8 +73,10 @@ addopts = [
   "--timeout=10",
   "--durations=10",
 
-  # Coverage: target the real package
-  "--cov=src/project_vault",
+  # Coverage: ALL real packages
+  "--cov=projectclone/projectclone",
+  "--cov=projectrestore/projectrestore",
+  "--cov=src",
   "--cov-report=term-missing:skip-covered",
   "--cov-report=html",
   "--cov-report=xml",
@@ -81,9 +86,14 @@ addopts = [
 log_cli = true
 log_cli_level = "INFO"
 
+
 [tool.coverage.run]
 branch = true
-source = ["src/project_vault"]
+source = [
+  "projectclone/projectclone",
+  "projectrestore/projectrestore",
+  "src",
+]
 
 [tool.coverage.report]
 fail_under = 85
