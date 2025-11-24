@@ -1,6 +1,6 @@
 [project]
 name = "project-vault-core"
-version = "1.0.0"
+version = "1.0.1"
 description = "Core library for Project Vault ecosystem"
 requires-python = ">=3.10"
 license = {text = "MIT"}
