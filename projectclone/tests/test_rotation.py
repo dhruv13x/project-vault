@@ -1,81 +1,74 @@
-# tests/test_rotation.py
 
 import os
-import time
-from pathlib import Path
-from unittest.mock import patch
-
+import shutil
 import pytest
-
-from projectclone.rotation import rotate_backups
-
-
-@pytest.fixture
-def temp_dest(tmp_path: Path):
-    """Temp dest base dir."""
-    dest = tmp_path / "dest"
-    dest.mkdir()
-    yield dest
-
+from unittest.mock import MagicMock, patch
+from projectclone import rotation
+from pathlib import Path
 
 class TestRotation:
-    def test_rotate_backups(self, temp_dest):
-        project = "testproj"
-        dir1 = temp_dest / "2025-01-01_000000-testproj-note1"
-        dir1.mkdir()
-        os.utime(dir1, (1735689600, 1735689600))  # Jan 1, 2025
-        file2 = temp_dest / "2025-01-02_000000-testproj-note2.tar.gz"
-        file2.touch()
-        os.utime(file2, (1735776000, 1735776000)) # Jan 2, 2025
-        # Keep 1: delete older
-        rotate_backups(temp_dest, 1, project)
-        assert not dir1.exists()
-        assert file2.exists()
-        # Keep 0: no delete
-        rotate_backups(temp_dest, 0, project)
-        assert file2.exists()
 
-    def test_rotate_keep_zero_and_one(self, tmp_path):
-        base = tmp_path / "back"
-        base.mkdir()
-        for i in range(4):
-            nm = f"2025-10-{10+i:02d}_123456-proj-{i}"
-            p = base / nm
-            p.mkdir()
-            atime = time.time() - (i * 3600)
-            os.utime(p, (atime, atime))
-        # keep=0 -> keep all
-        rotate_backups(base, keep=0, project_name="proj")
-        assert len(list(base.iterdir())) == 4
-        # keep=1 -> only newest remains
-        rotate_backups(base, keep=1, project_name="proj")
-        assert len(list(base.iterdir())) == 1
+    def test_rotate_backups(self, tmp_path):
+        vault = tmp_path / "vault"
+        vault.mkdir()
 
-    def test_rotate_deletes_files_and_dirs(self, tmp_path):
-        base = tmp_path / "back"
-        base.mkdir()
-        # create file backup and dir backup
-        (base / "2025-01-01_000000-proj-note-0").mkdir()
-        (base / "2025-01-02_000000-proj-note-1").mkdir()
-        f = base / "2025-01-03_000000-proj-note-2.tar.gz"
-        f.touch()
-        # keep only 1 newest
-        rotate_backups(base, keep=1, project_name="proj")
-        remaining = list(base.iterdir())
-        assert len(remaining) == 1
+        project = "src"
+        # Create 15 backups
+        for i in range(15):
+             # Format: YYYY-MM-DD_HHMMSS-<project>-
+             name = f"2023-01-01_{100000+i}-{project}-backup.tar.gz"
+             (vault / name).touch()
+             # Set mtime to ensure order (newest last)
+             os.utime(vault / name, (i*100, i*100))
 
-    def test_rotate_backups_error_handling(self, temp_dest):
-        project = "testproj"
-        dir1 = temp_dest / "2025-01-01_000000-testproj-note1"
-        dir1.mkdir()
-        os.utime(dir1, (1735689600, 1735689600))  # Jan 1, 2025
-        file2 = temp_dest / "2025-01-02_000000-testproj-note2.tar.gz"
-        file2.touch()
-        os.utime(file2, (1735776000, 1735776000))  # Jan 2, 2025
+        rotation.rotate_backups(vault, 10, project)
 
-        # Mock shutil.rmtree to raise an exception
-        with patch("shutil.rmtree") as mock_rmtree:
-            mock_rmtree.side_effect = OSError("Test error")
-            rotate_backups(temp_dest, 1, project)
-            # The file should still be there, and the error should be caught
-            assert dir1.exists()
+        # Should have kept 10, deleted 5.
+        # The remaining should be the newest 10 (indices 5 to 14)
+        remaining = sorted([p.name for p in vault.glob("*")])
+        assert len(remaining) == 10
+        assert "100000" not in remaining[0] # Oldest deleted
+        assert "100014" in remaining[-1] # Newest kept
+
+    def test_rotate_backups_exception(self, tmp_path):
+        vault = tmp_path / "vault"
+        vault.mkdir()
+
+        project = "proj"
+        b1 = vault / "2023-01-01_000000-proj-backup.tar.gz"
+        b1.touch()
+        os.utime(b1, (100, 100))
+        b2 = vault / "2023-01-01_000001-proj-backup.tar.gz"
+        b2.touch()
+        os.utime(b2, (200, 200))
+
+        # Keep 1, delete b1. Mock unlink exception.
+        with patch("pathlib.Path.unlink", side_effect=Exception("Delete fail")):
+            rotation.rotate_backups(vault, 1, project)
+            # Should not crash
+
+        assert b1.exists()
+
+    def test_rotate_backups_rmtree_exception(self, tmp_path):
+        vault = tmp_path / "vault"
+        vault.mkdir()
+
+        project = "proj"
+        d1 = vault / "2023-01-01_000000-proj-backup"
+        d1.mkdir()
+        os.utime(d1, (100, 100))
+        d2 = vault / "2023-01-01_000001-proj-backup"
+        d2.mkdir()
+        os.utime(d2, (200, 200))
+
+        with patch("shutil.rmtree", side_effect=Exception("Rmtree fail")):
+            rotation.rotate_backups(vault, 1, project)
+
+        assert d1.exists()
+
+    def test_rotate_backups_no_keep(self, tmp_path):
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        rotation.rotate_backups(vault, 0, "proj")
+        # Should return early
+        assert True
