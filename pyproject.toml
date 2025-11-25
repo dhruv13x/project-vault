@@ -51,7 +51,8 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = [
-  ".",          # root packages: projectclone, projectrestore
+  "projectclone",
+  "projectrestore",
   "src",        # src-based modules
   "project-vault-core/src",
 ]
