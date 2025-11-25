@@ -70,3 +70,16 @@ if "" in sys.path:
 
 # Re-add app_root at the end, so 'src' can be imported, but 'projectrestore' is found in project_root first
 sys.path.append(app_root)
+
+# Force check/reload of projectrestore to ensure we have the real package, not a namespace
+import projectrestore
+if not hasattr(projectrestore, 'modules'):
+    print(f"DEBUG: projectrestore loaded as namespace from {projectrestore.__path__}. Reloading...")
+    # Remove from sys.modules so we can reload from the correct path (which is now at 0)
+    del sys.modules['projectrestore']
+    import projectrestore
+    if not hasattr(projectrestore, 'modules'):
+         print("DEBUG: CRITICAL - projectrestore still lacks 'modules' after reload!")
+    else:
+         print(f"DEBUG: projectrestore successfully reloaded from {projectrestore.__file__}")
+
