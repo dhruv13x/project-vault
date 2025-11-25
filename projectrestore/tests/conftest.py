@@ -62,5 +62,11 @@ if app_root in sys.path:
     except ValueError:
         pass
 
+# Also remove "." and "" if present
+if "." in sys.path:
+    sys.path.remove(".")
+if "" in sys.path:
+    sys.path.remove("")
+
 # Re-add app_root at the end, so 'src' can be imported, but 'projectrestore' is found in project_root first
 sys.path.append(app_root)

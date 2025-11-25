@@ -28,6 +28,11 @@ if "." in sys.path:
     print(f"DEBUG: removing '.' from sys.path")
     sys.path.remove(".")
 
+# Also remove empty string "" (often CWD) if present
+if "" in sys.path:
+    print(f"DEBUG: removing '' from sys.path")
+    sys.path.remove("")
+
 print(f"DEBUG: inserting {pclone}")
 print(f"DEBUG: inserting {prestore}")
 print(f"DEBUG: inserting {psrc}")
