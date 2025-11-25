@@ -262,3 +262,18 @@ class TestBackupExtended:
 
         with patch("shutil.rmtree", side_effect=Exception("Rmtree fail")):
             rotation.rotate_backups(dest, 1, "proj")
+
+    def test_create_archive_tarfile_open_error(self, setup_env):
+        """
+        Test that if tarfile.open fails, an exception is raised and cleanup occurs.
+        """
+        src, dest = setup_env
+        dest_file = dest / "a.tar.gz"
+        log_fp = MagicMock()
+
+        with patch("tarfile.open", side_effect=tarfile.TarError("Test tar error")):
+            with pytest.raises(tarfile.TarError):
+                backup.create_archive(src, dest_file, log_fp=log_fp)
+
+        # Ensure temp file is cleaned up
+        assert not any(p.name.startswith("tmp_archive_") for p in dest.iterdir())
