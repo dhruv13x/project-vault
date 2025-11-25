@@ -30,12 +30,26 @@ pip install project-vault
 This installs the `pv` command, which includes:
 *   **`projectclone`**: The core snapshot engine.
 *   **`projectrestore`**: The safety-critical restoration tool.
+*   An interactive TUI for browsing snapshots (powered by `textual`).
 
 ### Standalone Tools (Advanced)
 For servers, CI/CD, or minimal environments, you can install the components independently:
 
 *   **Backup Only:** `pip install projectclone` (No cloud deps)
 *   **Restore Only:** `pip install projectrestore` (Zero dependencies, ultra-lightweight)
+
+---
+
+## ✨ Key Features
+
+*   **Interactive Time Machine**: **(God Level)** Browse, view, and restore files from any snapshot in a terminal-based UI (`pv browse`).
+*   **Cloud Agnostic Sync**: Push/pull encrypted, deduplicated snapshots to AWS S3, Backblaze B2, or any S3-compatible storage.
+*   **Content-Addressable Storage**: Every file is stored once, saving space and ensuring data integrity.
+*   **Lifecycle Hooks**: Execute pre/post-backup and pre/post-restore shell commands for seamless integration with databases and services.
+*   **Vault Garbage Collection**: Clean up orphaned data blocks from the vault with the `pv gc` command.
+*   **Environment Checker**: The `pv check-env` command verifies your cloud credentials and dependencies.
+*   **Notification Integration**: Test your notification setup with `pv notify-test`.
+*   **Doppler Secret Integration**: Automatically inject secrets from Doppler for secure cloud access.
 
 ---
 
@@ -85,15 +99,81 @@ pv checkout src/main.py
 
 | Command | Description |
 | :--- | :--- |
+| `pv browse` | **(New)** Interactive TUI to browse, view, and restore from snapshots. |
 | `pv vault` | Create a content-addressable snapshot of the current directory. |
+| `pv vault-restore` | Full project restoration from a manifest. |
 | `pv status` | Show modified files and cloud sync status. |
 | `pv diff` | Compare a local file against the latest snapshot. |
 | `pv checkout` | Restore a specific file from the latest snapshot. |
 | `pv push` | Sync local vault to Cloud (S3/B2). |
 | `pv pull` | Download missing snapshots from Cloud. |
 | `pv list` | List all local or cloud snapshots. |
-| `pv vault-restore` | Full project restoration from a manifest. |
+| `pv gc` | Run garbage collection to clean up orphaned vault objects. |
 | `pv check-integrity`| Verify the health of the local vault (detect corruption). |
+| `pv check-env` | Check cloud credentials and dependencies. |
+| `pv notify-test` | Send a test notification. |
+| `pv backup` | (Legacy) Create a file-based backup. |
+| `pv archive-restore` | (Legacy) Restore a file-based backup. |
+
+---
+
+## 🖥️ Interactive TUI (`pv browse`)
+
+For a "Time Machine"-like experience, run the `browse` command. This opens a Textual-based UI that lets you:
+
+*   Navigate all historical snapshots for a project.
+*   Expand snapshots to see the full file tree.
+*   View the contents of any file from a past version.
+*   Restore a single file by pressing `r`.
+
+```
+$ pv browse
+
+┌─ Snapshots: my-api ──────────────────────────────────────────┐
+│ ┌─ 20231125_120000 ────────────────────────────────────────── │
+│ │  📁 src/                                                   │
+│ │  │  📄 main.py                                             │
+│ │  │  📄 routes.py                                           │
+│ │  📄 .env                                                    │
+│ │  📄 README.md                                               │
+│ └─ 20231124_183000 ────────────────────────────────────────── │
+│    ...                                                       │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ⚙️ Configuration & Advanced Usage
+
+### Configuration File (`pv.toml`)
+Running `pv init` creates a `pv.toml` file for project-specific settings. You can also define these in your `pyproject.toml` under the `[tool.project-vault]` section.
+
+Key options:
+- `bucket`: The default cloud bucket.
+- `endpoint`: The S3-compatible endpoint URL.
+- `vault_path`: The local directory to store vault data.
+- `restore_path`: The default directory for `vault-restore`.
+
+### Environment Variables & Precedence
+`pv` uses a clear hierarchy for resolving settings:
+
+1.  **Command-Line Flags**: Arguments like `--bucket my-bucket` always win.
+2.  **`PV_` Prefixed Env Vars**: `PV_BUCKET` overrides `BUCKET` from a file.
+3.  **Doppler Secrets**: If `DOPPLER_TOKEN` is set, secrets are fetched and injected as environment variables.
+4.  **Standard Env Vars**: `AWS_ACCESS_KEY_ID`, `B2_KEY_ID`, etc.
+5.  **Config File**: `pv.toml` or `pyproject.toml` values are used last.
+
+> **Blockquote: Security Note**
+> For automated environments, using Doppler or `PV_` prefixed variables is highly recommended to avoid leaking general-purpose cloud credentials.
+
+### Lifecycle Hooks
+You can define shell commands in your `pv.toml` to run at critical stages of the backup/restore process. This is ideal for dumping a database before backup or restarting a service after restore.
+
+```toml
+[tool.project-vault.hooks]
+pre-backup = "pg_dump my_db > backup.sql"
+post-restore = "psql my_db < backup.sql && rm backup.sql"
+```
 
 ---
 
