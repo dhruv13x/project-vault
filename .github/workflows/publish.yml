@@ -40,7 +40,7 @@ jobs:
         # This command assumes pytest is used and the main package code is in 'src'.
         # If a project's main package is named differently (e.g., 'src/my_tool_name'),
         # '--cov=src' should still work if the package is directly under 'src'.
-        run: pytest --cov=src --cov-report=xml
+        run: pytest --cov=projectclone/projectclone --cov=projectrestore/projectrestore --cov=src --cov-report=xml
 
       - name: 📊 Upload coverage reports to Codecov
         # Requires a CODECOV_TOKEN secret to be configured in the repository settings.
