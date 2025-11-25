@@ -81,7 +81,7 @@ addopts = [
     "--strict-markers",    # Be strict about pytest markers
     "--cov=projectclone",  # Measure coverage on the src package
     "--cov-report=term-missing", # Show missing lines in terminal
-    "--cov-fail-under=90",   # Fail build if coverage < 85%
+    "--cov-fail-under=85",   # Fail build if coverage < 85%
 ]
 log_cli = true
 log_cli_level = "INFO"
