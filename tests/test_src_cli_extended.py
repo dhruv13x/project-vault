@@ -45,3 +45,30 @@ class TestCliExtended:
                  with patch.object(sys, 'argv', ['pv', 'vault', 'src', 'dst']):
                      cli.main()
                      mock_vault.assert_called()
+
+    @patch('src.cli.check_cloud_env')
+    def test_check_env_command(self, mock_check_cloud_env):
+        """
+        Test the 'check-env' command.
+        """
+        with patch.object(sys, 'argv', ['pv', 'check-env']):
+            cli._real_main()
+        mock_check_cloud_env.assert_called_once()
+
+    @patch('projectclone.gc_engine.run_garbage_collection')
+    def test_gc_command(self, mock_run_garbage_collection):
+        """
+        Test the 'gc' command.
+        """
+        with patch.object(sys, 'argv', ['pv', 'gc', 'vault_path', '--dry-run']):
+            cli._real_main()
+        mock_run_garbage_collection.assert_called_once()
+
+    @patch('projectclone.integrity_engine.verify_vault')
+    def test_check_integrity_command(self, mock_verify_vault):
+        """
+        Test the 'check-integrity' command.
+        """
+        with patch.object(sys, 'argv', ['pv', 'check-integrity', 'vault_path']):
+            cli._real_main()
+        mock_verify_vault.assert_called_once()
