@@ -1,3 +1,4 @@
+
 # Project Vault Roadmap
 
 > **Core Vision:**  
@@ -7,21 +8,20 @@
 
 This roadmap is organized by **levels of power** rather than only versions:
 
-- **Level 0 — Foundation (Now)**
-- **Level 1 — Smart Capsules (Current Focus)**
-- **Level 2 — Time & Navigation**
-- **Level 3 — UX, Ecosystem & Integrations**
-- **Level 4 — Security & Trust**
-- **Level 5 — GOD Level (Project Reality Bending)**
+- **Phase 1: Foundation (CRITICALLY MUST HAVE)**
+- **Phase 2: The Standard (MUST HAVE)**
+- **Phase 3: The Ecosystem (INTEGRATION & SHOULD HAVE)**
+- **Phase 4: The Vision (GOD LEVEL)**
+- **The Sandbox (OUT OF THE BOX / OPTIONAL)**
 
 Each level deepens the same core superpower:  
 **“Teleport my entire project state anywhere, safely and predictably.”**
 
 ---
 
-## Level 0 — Foundation (Completed)
+## Phase 1: Foundation (Q1)
 
-These are the core building blocks already implemented.
+**Focus**: Core functionality, stability, security, and basic usage.
 
 ### Core Engine & CLI
 
@@ -55,17 +55,17 @@ These are the core building blocks already implemented.
 
 ---
 
-## Level 1 — Smart Capsules (Current Focus)
+## Phase 2: The Standard (Q2)
 
-Goal: Enhance usability, intelligence, and verifiable correctness. Make `pv` smarter about *what* it stores and *how*.
+**Focus**: Feature parity with top competitors, user experience improvements, and robust error handling.
 
-### 1.1. Metadata Indexing (Completed/In-Progress)
+### 2.1. Metadata Indexing
 
 - [x] **Store Metadata:** Capture file permissions (chmod) and timestamps (mtime) in manifest (V2 Format).
 - [x] **Restore Metadata:** Apply permissions and timestamps correctly on restore/checkout.
 - [ ] **Symlink Support:** Store symlinks as first-class objects (not just following them).
 
-### 1.2. Smart Configuration
+### 2.2. Smart Configuration
 
 - [ ] **Auto-Configuration (`pv init --smart`):**
     - Auto-detect project type (Python, Node, Rust).
@@ -73,13 +73,13 @@ Goal: Enhance usability, intelligence, and verifiable correctness. Make `pv` sma
 - [ ] **Ignore/Include Rules:**
     - `.pvignore` support (distinct from `.gitignore` for snapshot payloads).
 
-### 1.3. Verify-Clone (Prove the Magic)
+### 2.3. Verify-Clone (Prove the Magic)
 
 - [ ] `pv verify-clone <original_path> <clone_path>`:
   - Walk both trees and verify bit-identical content.
   - Show friendly summary: `Verification successful: Capsule is perfect.`
 
-### 1.4. First-class "Capsule" Concept
+### 2.4. First-class "Capsule" Concept
 
 - [ ] Introduce `pv capsule create` / `restore` aliases.
 - [ ] Official on-disk capsule format (`*.pvc`) for sharing.
@@ -87,30 +87,9 @@ Goal: Enhance usability, intelligence, and verifiable correctness. Make `pv` sma
 
 ---
 
-## Level 2 — Time & Navigation (Project Time Machine)
+## Phase 3: The Ecosystem (Q3)
 
-Goal: Extend teleportation in **time**, not just space.
-
-### 2.1. Snapshot Timeline
-
-- [ ] `pv history`: Chronological list with filtering (`--host`, `--since`).
-- [ ] **Interactive TUI:** Browse snapshots and view diffs visually (`pv interactive`).
-
-### 2.2. Snapshot Diffs & Restore
-
-- [ ] `pv diff --snapshot A --snapshot B`: Compare state between two points in time.
-- [ ] `pv restore --snapshot <id>`: Full project restore to specific state.
-- [ ] `pv checkout <file> --snapshot <id>`: Surgical restore from history.
-
-### 2.3. Labels & Bookmarks
-
-- [ ] `pv tag add <name>`: Label important states (e.g., "stable-v1").
-
----
-
-## Level 3 — UX, Ecosystem & Integrations
-
-Goal: Make Project Vault feel like a natural part of daily dev life.
+**Focus**: Webhooks, API exposure, 3rd party plugins, SDK generation, and extensibility.
 
 ### 3.1. Performance Optimization
 
@@ -123,38 +102,55 @@ Goal: Make Project Vault feel like a natural part of daily dev life.
 - [ ] Document recipes: "New Machine Migration", "Bug Capsules", "Cloud Resurrection".
 - [ ] Configurable defaults in `pv.toml`.
 
+### 3.3. Secret Manager Integration
+
+- [x] **Doppler Support:**
+    - Automatically fetch cloud credentials (AWS/B2 keys) and other configurations from a detected Doppler environment.
+- [ ] **Infisical Support:**
+    - Add support for Infisical as a secret provider.
+- [ ] **Plugin Architecture for Secret Managers:**
+    - Allow users to create their own secret manager plugins.
+
 ---
 
-## Level 4 — Security & Trust
+## Phase 4: The Vision (Q4)
 
-Goal: Make sure that what you store and ship is safe.
+**Focus**: "Futuristic" features, AI integration, advanced automation, and industry-disrupting capabilities.
 
-### 4.1. Client-side Encryption
+### 4.1. Snapshot Timeline
+
+- [ ] `pv history`: Chronological list with filtering (`--host`, `--since`).
+- [x] **Interactive TUI:** Browse snapshots and view diffs visually (`pv interactive`).
+
+### 4.2. Snapshot Diffs & Restore
+
+- [ ] `pv diff --snapshot A --snapshot B`: Compare state between two points in time.
+- [ ] `pv restore --snapshot <id>`: Full project restore to specific state.
+- [ ] `pv checkout <file> --snapshot <id>`: Surgical restore from history.
+
+### 4.3. Labels & Bookmarks
+
+- [ ] `pv tag add <name>`: Label important states (e.g., "stable-v1").
+
+### 4.4. Client-side Encryption
 
 - [ ] **Zero-Knowledge Encryption:** AES-256-GCM encryption of objects *before* they hit the disk/cloud.
 - [ ] Key management (Passphrase or Keyfile).
 
-### 4.2. Redacted Capsules
+### 4.5. Redacted Capsules
 
 - [ ] `pv capsule create --redacted`: Automatically exclude secrets (`.env`) based on policy.
 
-### 4.3. Enhanced Integrity
+### 4.6. Enhanced Integrity
 
 - [ ] Hash chains or manifest signatures.
 - [ ] `pv check-integrity --deep`: Verify entire history.
 
-### 4.4. Secret Manager Integration
-
-- [ ] **Doppler & Infisical Support:**
-    - Automatically fetch cloud credentials (AWS/B2 keys) and other configurations from a detected Doppler or Infisical environment.
-    - Eliminate the need for local `.env` files or exporting secrets in shell profiles.
-    - Add as an optional install: `pip install project-vault[doppler]`.
-
 ---
 
-## Level 5 — GOD Level (Reality-Bending Project Control)
+## The Sandbox (Beyond Q4)
 
-Goal: Your project becomes a portable, continuous, self-healing entity.
+**Focus**: Wild, creative, experimental ideas that set the project apart.
 
 ### 5.1. Cross-OS Rebinding
 
@@ -177,6 +173,10 @@ Goal: Your project becomes a portable, continuous, self-healing entity.
 
 - [ ] **Large File Support (LFS):** Chunking for multi-GB model weights.
 - [ ] **Data Provenance:** Track which snapshot generated which output file.
+- [ ] **AI-powered `.vaultignore`:**
+    - Train a model to predict which files should be ignored based on the project type.
+- [ ] **AI-powered `diff`:**
+    - Use AI to summarize the changes between two snapshots.
 
 ---
 
