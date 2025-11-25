@@ -1,3 +1,5 @@
+# projectclone/projectclone/checkout_engine.py
+
 import os
 import sys
 import shutil

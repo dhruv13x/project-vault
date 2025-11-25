@@ -1,3 +1,5 @@
+# tests/common/test_smart_init.py
+
 import os
 import pytest
 from src.common import smart_init

@@ -1,3 +1,5 @@
+# tests/test_tui.py
+
 import unittest
 from unittest.mock import MagicMock, patch
 import os

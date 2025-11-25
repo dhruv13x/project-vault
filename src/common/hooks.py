@@ -1,3 +1,5 @@
+# src/common/hooks.py
+
 import subprocess
 import sys
 from rich.console import Console

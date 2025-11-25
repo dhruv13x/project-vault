@@ -31,6 +31,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
+.autoheader_cache
 
 # pip/build metadata
 pip-wheel-metadata/

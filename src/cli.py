@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# src/cli.py
+
 import sys
 import os
 import argparse
@@ -43,18 +45,22 @@ sys.path.insert(0, current_dir)
 # Attempt to import common, handling both editable/local and installed package scenarios
 try:
     import common.config as config
+    from common.banner import print_logo
 except ImportError:
     # Fallback: try relative import if running as script/module inside src
     try:
         from .common import config
+        from .common.banner import print_logo
     except ImportError:
         # Final fallback for some editable installs or specific layouts
         try:
             from src.common import config
+            from src.common.banner import print_logo
         except ImportError:
             # If all fails, assume we are running from installed package context where src is not in path
             # but the package root is.
             import config
+            from common.banner import print_logo
 
 
 def resolve_path(path_str):
@@ -362,6 +368,7 @@ def main():
         sys.exit(130)
 
 def _real_main():
+    print_logo()
     # 1. Inject Doppler Secrets (Environment Override)
     inject_doppler_secrets()
 

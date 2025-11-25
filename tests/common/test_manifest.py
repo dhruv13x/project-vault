@@ -1,3 +1,5 @@
+# tests/common/test_manifest.py
+
 import pytest
 import os
 import json

@@ -1,3 +1,5 @@
+# src/common/manifest.py
+
 import json
 import os
 from datetime import datetime, timezone
