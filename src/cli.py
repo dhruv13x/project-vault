@@ -89,24 +89,44 @@ def check_cloud_env():
         status_text.append(f"✅ Cloud Credentials Found (Source: {source})\n", style="success")
         if source == "Doppler":
             status_text.append("   Secrets managed via Doppler Integration.\n", style="dim")
+        
+        # Get provider info
+        provider, bucket, endpoint = credentials.get_cloud_provider_info()
+        
+        status_text.append("\n[bold]Configuration:[/bold]\n")
+        if provider and provider != "Unknown":
+            status_text.append(f"   Cloud Provider: [bold cyan]{provider}[/bold cyan]\n")
+        else:
+            status_text.append(f"   Cloud Provider: [yellow]Unknown (could not infer from credentials or endpoint)[/yellow]\n")
+
+        if bucket:
+            status_text.append(f"   Bucket: [bold cyan]{bucket}[/bold cyan]\n")
+        else:
+            status_text.append(f"   Bucket: [yellow]Not Configured (set in pv.toml or PV_BUCKET env var)[/yellow]\n")
+
+        if endpoint:
+            status_text.append(f"   Endpoint: [bold cyan]{endpoint}[/bold cyan]\n")
+        else:
+            status_text.append(f"   Endpoint: [dim]Not set (will use provider default)[/dim]\n")
+
     else:
          status_text.append("\n❌ No cloud credentials found.\n", style="error")
          status_text.append("   To use Cloud features, export either B2 or AWS credentials.\n", style="warning")
          status_text.append("   Tip: Prefix with PV_ to isolate credentials for this tool (e.g. PV_AWS_ACCESS_KEY_ID).", style="dim")
 
     # Check Libraries
-    status_text.append("\nLibrary Status:\n", style="bold underline")
+    status_text.append("\n[bold]Library Status:[/bold]\n")
     try:
         import boto3
-        status_text.append("✅ boto3 is installed\n", style="success")
+        status_text.append("   ✅ boto3 is installed\n", style="success")
     except ImportError:
-        status_text.append("❌ boto3 is missing (Run: pip install boto3)\n", style="error")
+        status_text.append("   ❌ boto3 is missing (Run: pip install boto3)\n", style="error")
     
     try:
         import b2sdk
-        status_text.append("✅ b2sdk is installed\n", style="success")
+        status_text.append("   ✅ b2sdk is installed\n", style="success")
     except ImportError:
-        status_text.append("❌ b2sdk is missing (Run: pip install b2sdk)\n", style="error")
+        status_text.append("   ❌ b2sdk is missing (Run: pip install b2sdk)\n", style="error")
 
     console.print(Panel(status_text, title="Cloud Environment Configuration", border_style="blue"))
 

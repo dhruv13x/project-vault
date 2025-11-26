@@ -229,3 +229,38 @@ def get_full_env() -> Dict[str, str]:
         full_env.update(doppler)
         
     return full_env
+
+
+def get_cloud_provider_info() -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Determines the cloud provider, bucket, and endpoint for display purposes.
+
+    Returns:
+        (provider, bucket, endpoint)
+    """
+    full_env = get_full_env()
+    config = config_loader.load_project_config()
+    provider = "Unknown"
+
+    # 1. Determine Provider from credentials
+    env_keys = set(full_env.keys())
+    has_b2_keys = any(k in env_keys for k in ["B2_KEY_ID", "PV_B2_KEY_ID"])
+    has_aws_keys = any(k in env_keys for k in ["AWS_ACCESS_KEY_ID", "PV_AWS_ACCESS_KEY_ID"])
+
+    if has_b2_keys:
+        provider = "Backblaze B2"
+    elif has_aws_keys:
+        provider = "AWS S3"
+    
+    # 2. Try to infer from endpoint if keys are ambiguous or not in env
+    endpoint = config.get("endpoint") or full_env.get("PV_ENDPOINT")
+    if provider == "Unknown" and endpoint:
+        if "backblazeb2.com" in endpoint:
+            provider = "Backblaze B2"
+        elif "amazonaws.com" in endpoint or "s3" in endpoint:
+            provider = "AWS S3"
+
+    # 3. Get bucket
+    bucket = config.get("bucket") or full_env.get("PV_BUCKET")
+
+    return provider, bucket, endpoint

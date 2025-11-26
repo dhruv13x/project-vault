@@ -81,13 +81,20 @@ def list_local_snapshots(vault_path: str):
 
 def list_cloud_snapshots(bucket_name: str, key_id: str, app_key: str, endpoint: str = None):
     """
-    Connects to a Cloud bucket (S3 or B2) and lists all found snapshots.
+    Connects to a Cloud bucket (S3 or B2) and lists all found snapshots and archives.
     """
     console = Console()
-    table = Table(title=f"Cloud Snapshots in Bucket: '{bucket_name}'", show_header=True, header_style="bold magenta")
-    table.add_column("Project", style="cyan", no_wrap=True)
-    table.add_column("Snapshot Time", style="green")
-    table.add_column("Manifest File", style="dim")
+    # Table for Vault Snapshots
+    snapshot_table = Table(title=f"Cloud Vault Snapshots in Bucket: '{bucket_name}'", show_header=True, header_style="bold magenta")
+    snapshot_table.add_column("Project", style="cyan", no_wrap=True)
+    snapshot_table.add_column("Snapshot Time", style="green")
+    snapshot_table.add_column("Manifest File", style="dim")
+
+    # Table for Archive Backups
+    archive_table = Table(title=f"Cloud Archive Backups in Bucket: '{bucket_name}'", show_header=True, header_style="bold blue")
+    archive_table.add_column("Project", style="cyan", no_wrap=True)
+    archive_table.add_column("Backup Time", style="green")
+    archive_table.add_column("Archive File (.tar.gz)", style="dim")
 
     try:
         # Logic: If an endpoint is provided OR we have AWS credentials in env, prefer S3.
@@ -99,34 +106,61 @@ def list_cloud_snapshots(bucket_name: str, key_id: str, app_key: str, endpoint: 
              from src.common import b2
              manager = b2.B2Manager(key_id, app_key, bucket_name)
 
-        console.print("Fetching snapshot list from Cloud...")
+        console.print("Fetching file list from Cloud...")
         cloud_files = manager.list_file_names()
 
+        # --- Process Files ---
         snapshot_prefix = "snapshots/"
         projects = {}
+        archives = []
+        found_snapshots = False
+        found_archives = False
 
         for file_name in cloud_files:
             if file_name.startswith(snapshot_prefix) and file_name.endswith(".json"):
                 parts = file_name.split('/')
-                # Expected structure: snapshots/<project_name>/<filename>.json
-                if len(parts) == 3:
-                    project_name = parts[1]
-                    manifest_name = parts[2]
+                if len(parts) == 3: # snapshots/<project>/<manifest>.json
+                    project_name, manifest_name = parts[1], parts[2]
                     if project_name not in projects:
                         projects[project_name] = []
                     projects[project_name].append(manifest_name)
+                    found_snapshots = True
+            elif file_name.endswith(".tar.gz"):
+                archives.append(file_name)
+                found_archives = True
 
-        if not projects:
-            console.print("No snapshots found in the cloud bucket.")
-            return
-            
-        for project_name in sorted(projects.keys()):
-            manifests = sorted(projects[project_name], reverse=True)
-            for manifest_name in manifests:
-                pretty_time = _parse_snapshot_name(manifest_name)
-                table.add_row(project_name, pretty_time, manifest_name)
+        # --- Display Snapshots ---
+        if not found_snapshots:
+            console.print(f"No vault snapshots found in bucket '{bucket_name}'.")
+        else:
+            for project_name in sorted(projects.keys()):
+                manifests = sorted(projects[project_name], reverse=True)
+                for manifest_name in manifests:
+                    pretty_time = _parse_snapshot_name(manifest_name)
+                    snapshot_table.add_row(project_name, pretty_time, manifest_name)
+            console.print(snapshot_table)
+        
+        console.print() # Spacer
 
-        console.print(table)
+        # --- Display Archives ---
+        if not found_archives:
+            console.print(f"No archive backups (.tar.gz) found in bucket '{bucket_name}'.")
+        else:
+            for archive_name in sorted(archives, reverse=True):
+                try:
+                    # Try to parse the standard archive name format
+                    ts_part = archive_name[:17]
+                    dt = datetime.strptime(ts_part, "%Y-%m-%d_%H%M%S")
+                    pretty_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    name_body = archive_name[18:].replace(".tar.gz", "")
+                    project_name = name_body.split('-', 1)[0]
+                    
+                    archive_table.add_row(project_name, pretty_time, archive_name)
+                except (ValueError, IndexError):
+                    # If parsing fails, show the raw filename
+                    archive_table.add_row("[dim]Unknown[/dim]", "[dim]N/A[/dim]", archive_name)
+            console.print(archive_table)
 
     except Exception as e:
         console.print(f"[bold red]Error connecting to cloud backend:[/bold red] {e}")

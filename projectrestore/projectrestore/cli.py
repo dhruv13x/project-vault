@@ -111,28 +111,43 @@ class RichHelpAction(argparse.Action):
 
 def get_cloud_credentials():
     """
-    Resolves cloud credentials with precedence (duplicated from pv for standalone capability).
-    Returns: (provider_type, key_id, app_key)
+    Resolves cloud credentials using the main project-vault resolver
+    to ensure sources like Doppler are included.
     """
-    aws_key_pv = os.environ.get("PV_AWS_ACCESS_KEY_ID")
-    aws_secret_pv = os.environ.get("PV_AWS_SECRET_ACCESS_KEY")
-    aws_key_std = os.environ.get("AWS_ACCESS_KEY_ID")
-    aws_secret_std = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    try:
+        from src.common import credentials
+    except ImportError:
+        # Try relative import if we are inside the pv structure
+        try:
+            import sys
+            current = Path(__file__).resolve()
+            root = current.parents[2]
+            sys.path.insert(0, str(root / "src"))
+            from src.common import credentials
+        except ImportError:
+            LOG.error("Could not import 'src.common.credentials' for cloud operations.")
+            return None, None, None
 
-    b2_key_pv = os.environ.get("PV_B2_KEY_ID")
-    b2_app_pv = os.environ.get("PV_B2_APP_KEY")
-    b2_key_std = os.environ.get("B2_KEY_ID")
-    b2_app_std = os.environ.get("B2_APP_KEY")
+    # Use a dummy args object for the resolver
+    class DummyArgs:
+        key_id = None
+        secret_key = None
 
-    aws_final_key = aws_key_pv or aws_key_std
-    aws_final_secret = aws_secret_pv or aws_secret_std
-    b2_final_key = b2_key_pv or b2_key_std
-    b2_final_app = b2_app_pv or b2_app_std
+    # Resolve credentials from all sources (CLI, Doppler, Env, Config)
+    key_id, secret_key, source = credentials.resolve_credentials(DummyArgs(), allow_fail=True)
 
-    if aws_final_key and aws_final_secret:
-        return "s3", aws_final_key, aws_final_secret
-    if b2_final_key and b2_final_app:
-        return "b2", b2_final_key, b2_final_app
+    # If keys are found, determine the provider type (b2 or s3)
+    if key_id and secret_key:
+        provider_info, _, _ = credentials.get_cloud_provider_info()
+        provider_type = None
+        if provider_info == "Backblaze B2":
+            provider_type = "b2"
+        elif provider_info == "AWS S3":
+            provider_type = "s3"
+        
+        LOG.info(f"Authenticated via {source}")
+        return provider_type, key_id, secret_key
+    
     return None, None, None
 
 
