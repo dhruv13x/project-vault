@@ -19,8 +19,6 @@ try:
 except ImportError:
     RichHelpFormatter = argparse.HelpFormatter
 
-import pdb # Added for debugging
-
 # Define custom theme
 custom_theme = Theme({
     "info": "cyan",
@@ -45,21 +43,25 @@ sys.path.insert(0, current_dir)
 # Attempt to import common, handling both editable/local and installed package scenarios
 try:
     import common.config as config
+    import common.credentials as credentials
     from common.banner import print_logo
 except ImportError:
     # Fallback: try relative import if running as script/module inside src
     try:
         from .common import config
+        from .common import credentials
         from .common.banner import print_logo
     except ImportError:
         # Final fallback for some editable installs or specific layouts
         try:
             from src.common import config
+            from src.common import credentials
             from src.common.banner import print_logo
         except ImportError:
             # If all fails, assume we are running from installed package context where src is not in path
             # but the package root is.
             import config
+            import credentials
             from common.banner import print_logo
 
 
@@ -73,123 +75,24 @@ def resolve_path(path_str):
     return os.path.abspath(os.path.expanduser(os.path.expandvars(path_str)))
 
 
-def inject_doppler_secrets():
-    """
-    Checks for DOPPLER_TOKEN and fetches secrets from Doppler API if present.
-    Injects them into os.environ.
-    """
-    token = os.environ.get("DOPPLER_TOKEN")
-    if not token:
-        return
-
-    console.print(Panel("🔮 Doppler Token detected. Fetching secrets...", title="Doppler Integration", border_style="cyan"))
-
-    url = "https://api.doppler.com/v3/configs/config/secrets/download?format=json"
-    req = urllib.request.Request(url)
-
-    # Basic Auth: username=token, password=""
-    auth_str = f"{token}:"
-    b64_auth = base64.b64encode(auth_str.encode("ascii")).decode("ascii")
-    req.add_header("Authorization", f"Basic {b64_auth}")
-
-    try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            secrets = json.load(response)
-            
-            count = 0
-            for key, value in secrets.items():
-                # We overwrite existing env vars to allow Doppler to be the source of truth
-                # or we can choose to only set if missing.
-                # Usually tools prioritize ENV > Config. 
-                # Here we treat Doppler as "Better ENV".
-                if key not in os.environ:
-                    os.environ[key] = str(value)
-                    count += 1
-            
-            console.print(f"[success]✅ Loaded {count} secrets from Doppler.[/success]")
-    except Exception as e:
-        console.print(f"[error]❌ Failed to load Doppler secrets: {e}[/error]")
-
-
-def get_credentials(provider=None):
-    """
-    Resolves cloud credentials with precedence:
-    1. PV_ prefixed variables (PV_AWS_..., PV_B2_...)
-    2. Standard variables (AWS_..., B2_...) 
-    
-    Returns:
-        (key_id, app_key/secret_key)
-    """
-    # AWS / S3
-    aws_key_pv = os.environ.get("PV_AWS_ACCESS_KEY_ID")
-    aws_secret_pv = os.environ.get("PV_AWS_SECRET_ACCESS_KEY")
-    
-    aws_key_std = os.environ.get("AWS_ACCESS_KEY_ID")
-    aws_secret_std = os.environ.get("AWS_SECRET_ACCESS_KEY")
-    
-    # B2
-    b2_key_pv = os.environ.get("PV_B2_KEY_ID")
-    b2_app_pv = os.environ.get("PV_B2_APP_KEY")
-    
-    b2_key_std = os.environ.get("B2_KEY_ID")
-    b2_app_std = os.environ.get("B2_APP_KEY")
-    
-    # Resolve
-    aws_final_key = aws_key_pv or aws_key_std
-    aws_final_secret = aws_secret_pv or aws_secret_std
-    
-    b2_final_key = b2_key_pv or b2_key_std
-    b2_final_app = b2_app_pv or b2_app_std
-    
-    # If specific provider requested (future use), or just return first valid pair
-    # Currently, since S3 and B2 support is somewhat mutually exclusive per command execution (one target),
-    # we return the AWS pair if present (as S3 is more generic), otherwise B2.
-    
-    # However, if the user has BOTH set, we might have ambiguity. 
-    # Given the code uses `key_id` and `app_key` generically, we'll prioritize AWS logic if found.
-    
-    if aws_final_key and aws_final_secret:
-        return aws_final_key, aws_final_secret
-    
-    if b2_final_key and b2_final_app:
-        return b2_final_key, b2_final_app
-        
-    return None, None
-
-
 def check_cloud_env():
     status_text = Text()
     
-    # Check B2
-    b2_key_pv = os.environ.get("PV_B2_KEY_ID")
-    b2_app_pv = os.environ.get("PV_B2_APP_KEY")
-    b2_key_std = os.environ.get("B2_KEY_ID")
-    b2_app_std = os.environ.get("B2_APP_KEY")
+    # Create a dummy args object to pass to resolve_credentials
+    class DummyArgs:
+        key_id = None
+        secret_key = None
+        
+    key_id, secret_key, source = credentials.resolve_credentials(DummyArgs(), allow_fail=True)
     
-    if b2_key_pv and b2_app_pv:
-        status_text.append("✅ Found PV-prefixed B2 Credentials (PV_B2_KEY_ID, PV_B2_APP_KEY)\n", style="success")
-    elif b2_key_std and b2_app_std:
-        status_text.append("✅ Found Standard B2 Credentials (B2_KEY_ID, B2_APP_KEY)\n", style="success")
+    if key_id and secret_key:
+        status_text.append(f"✅ Cloud Credentials Found (Source: {source})\n", style="success")
+        if source == "Doppler":
+            status_text.append("   Secrets managed via Doppler Integration.\n", style="dim")
     else:
-        status_text.append("⚠️  Missing B2 Credentials\n", style="warning")
-
-    # Check AWS/S3
-    aws_key_pv = os.environ.get("PV_AWS_ACCESS_KEY_ID")
-    aws_secret_pv = os.environ.get("PV_AWS_SECRET_ACCESS_KEY")
-    aws_key_std = os.environ.get("AWS_ACCESS_KEY_ID")
-    aws_secret_std = os.environ.get("AWS_SECRET_ACCESS_KEY")
-    
-    if aws_key_pv and aws_secret_pv:
-        status_text.append("✅ Found PV-prefixed AWS/S3 Credentials (PV_AWS_ACCESS_KEY_ID, PV_AWS_SECRET_ACCESS_KEY)\n", style="success")
-    elif aws_key_std and aws_secret_std:
-        status_text.append("✅ Found Standard AWS/S3 Credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)\n", style="success")
-    else:
-        status_text.append("⚠️  Missing AWS/S3 Credentials\n", style="warning")
-
-    if not (b2_key_pv or b2_key_std) and not (aws_key_pv or aws_key_std):
-        status_text.append("\n❌ No cloud credentials found.\n", style="error")
-        status_text.append("   To use Cloud features, export either B2 or AWS credentials.\n", style="warning")
-        status_text.append("   Tip: Prefix with PV_ to isolate credentials for this tool (e.g. PV_AWS_ACCESS_KEY_ID).", style="dim")
+         status_text.append("\n❌ No cloud credentials found.\n", style="error")
+         status_text.append("   To use Cloud features, export either B2 or AWS credentials.\n", style="warning")
+         status_text.append("   Tip: Prefix with PV_ to isolate credentials for this tool (e.g. PV_AWS_ACCESS_KEY_ID).", style="dim")
 
     # Check Libraries
     status_text.append("\nLibrary Status:\n", style="bold underline")
@@ -347,7 +250,7 @@ def print_main_help():
 
 class RichHelpAction(argparse.Action):
     """
-    A custom argparse action to show a rich-formatted help panel and exit.
+A custom argparse action to show a rich-formatted help panel and exit.
     """
     def __init__(self, option_strings, dest, **kwargs):
         super().__init__(option_strings, dest, nargs=0, **kwargs)
@@ -369,12 +272,26 @@ def main():
 
 def _real_main():
     print_logo()
-    # 1. Inject Doppler Secrets (Environment Override)
-    inject_doppler_secrets()
-
-    # 2. Load File Config
+    
+    # 1. Load File Config (Lowest Priority)
     defaults = config.load_project_config()
     
+    # 2. Get Merged Environment (Doppler > Real Env > .env)
+    full_env = credentials.get_full_env()
+
+    # 3. Merge Environment into Defaults (Env > Config)
+    # Map Env Vars to Config Keys
+    env_mapping = {
+        "PV_BUCKET": "bucket",
+        "PV_ENDPOINT": "endpoint",
+        "PV_VAULT_PATH": "vault_path",
+        "PV_RESTORE_PATH": "restore_path"
+    }
+    
+    for env_var, config_key in env_mapping.items():
+        if full_env.get(env_var):
+            defaults[config_key] = full_env[env_var]
+
     # Initialize Notifier
     try:
         from common.notifications import TelegramNotifier
@@ -386,17 +303,6 @@ def _real_main():
             notifier = TelegramNotifier(defaults)
         except ImportError:
             notifier = None
-
-    # 3. Merge Environment Config (Doppler/Manual) into Defaults
-    # This ensures that if a key exists in Env (from Doppler), it overrides/fills the file config.
-    if os.environ.get("PV_BUCKET"):
-        defaults["bucket"] = os.environ["PV_BUCKET"]
-    if os.environ.get("PV_ENDPOINT"):
-        defaults["endpoint"] = os.environ["PV_ENDPOINT"]
-    if os.environ.get("PV_VAULT_PATH"):
-        defaults["vault_path"] = os.environ["PV_VAULT_PATH"]
-    if os.environ.get("PV_RESTORE_PATH"):
-        defaults["restore_path"] = os.environ["PV_RESTORE_PATH"]
 
     # Hijack for pass-through commands to avoid argparse issues with flags like --help
     # Note: 'clone' and 'restore' are the new preferred names for the sub-tools.
@@ -525,6 +431,15 @@ def _real_main():
     list_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
     list_parser.add_argument("--limit", type=int, default=10)
 
+    # --- Config Command Group ---
+    config_parser = subparsers.add_parser("config", help="Manage configuration", formatter_class=RichHelpFormatter)
+    config_subparsers = config_parser.add_subparsers(dest="config_command", title="Config Actions")
+    
+    # set-creds
+    set_creds_parser = config_subparsers.add_parser("set-creds", help="Save credentials to pv.toml (Insecure Storage)", formatter_class=RichHelpFormatter)
+    set_creds_parser.add_argument("--key-id", required=True, help="Cloud Access Key ID")
+    set_creds_parser.add_argument("--secret-key", required=True, help="Cloud Secret Key")
+
     # --- Cloud Env Check Command ---
     subparsers.add_parser("check-env", help="Verify Cloud Environment Variables (S3/B2)", formatter_class=RichHelpFormatter)
 
@@ -615,7 +530,11 @@ def _real_main():
         # Prepare cloud config if bucket is present
         cloud_config = {}
         if args.bucket:
-            key_id, app_key = get_credentials()
+            key_id, app_key, source = credentials.resolve_credentials(args)
+            if key_id and app_key:
+                # Quietly add source info, status engine might use it or we can log it
+                pass
+                
             cloud_config = {
                 "bucket": args.bucket,
                 "endpoint": args.endpoint,
@@ -685,13 +604,15 @@ def _real_main():
                 console.print("[error]Error: --bucket must be specified in CLI or pv.toml for cloud listing.[/error]")
                 sys.exit(1)
             
-            key_id, app_key = get_credentials()
+            key_id, app_key, source = credentials.resolve_credentials(args)
 
             if not key_id or not app_key:
                 console.print("[error]Error: Cloud credentials missing.[/error]")
+                console.print("Sources checked: CLI > Doppler > Env > .env > Config")
                 console.print("Set PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (preferred) or standard AWS_.../B2_... variables.")
                 sys.exit(1)
             
+            console.print(f"[dim]Authenticated via {source}[/dim]")
             list_engine.list_cloud_snapshots(args.bucket, key_id, app_key, getattr(args, 'endpoint', None))
         else:
             if not args.vault_path:
@@ -707,13 +628,15 @@ def _real_main():
             console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
             sys.exit(1)
 
-        key_id, app_key = get_credentials()
+        key_id, app_key, source = credentials.resolve_credentials(args)
 
         if not key_id or not app_key:
             console.print("[error]Error: Cloud credentials missing.[/error]")
+            console.print("Sources checked: CLI > Doppler > Env > .env > Config")
             console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
             sys.exit(1)
 
+        console.print(f"[dim]Authenticated via {source}[/dim]")
         from projectclone import sync_engine
         try:
             sync_engine.sync_to_cloud(
@@ -739,13 +662,15 @@ def _real_main():
             console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
             sys.exit(1)
 
-        key_id, app_key = get_credentials()
+        key_id, app_key, source = credentials.resolve_credentials(args)
 
         if not key_id or not app_key:
             console.print("[error]Error: Cloud credentials missing.[/error]")
+            console.print("Sources checked: CLI > Doppler > Env > .env > Config")
             console.print("Please export PV_AWS_ACCESS_KEY_ID/PV_AWS_SECRET_ACCESS_KEY (for S3) or B2 equivalent.")
             sys.exit(1)
 
+        console.print(f"[dim]Authenticated via {source}[/dim]")
         from projectclone import sync_engine
         sync_engine.sync_from_cloud(
             resolve_path(args.vault_path),
@@ -770,6 +695,101 @@ def _real_main():
             sys.exit(1)
         from projectclone import gc_engine
         gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
+
+    elif args.command == "config":
+        if args.config_command == "set-creds":
+            pv_path = "pv.toml"
+            if not os.path.exists(pv_path):
+                 console.print("[error]Error: pv.toml not found. Run `pv init` first.[/error]")
+                 sys.exit(1)
+            
+            with open(pv_path, "r") as f:
+                content = f.read()
+            
+            if "allow_insecure_storage = true" not in content:
+                console.print(Panel(
+                    "[bold red]⛔ Security Lock Engaged[/bold red]\n\n"
+                    "You are attempting to save secrets to a plain-text file.\n"
+                    "To authorize this, you must manually edit [yellow]pv.toml[/yellow] and set:\n\n"
+                    "  [credentials]\n"
+                    "  allow_insecure_storage = true\n",
+                    title="Safety Check Failed", border_style="red"
+                ))
+                sys.exit(1)
+
+            # Naive replacement/append for the prototype
+            # We assume the user has set the flag, so the section likely exists.
+            # We will just append the keys for now or use a regex if we want to be fancy.
+            # Simpler: Read lines, find [credentials], update keys if exist, else append.
+            
+            new_lines = []
+            in_creds = False
+            keys_written = {"key_id": False, "secret_key": False}
+            
+            lines = content.splitlines()
+            for line in lines:
+                clean = line.strip()
+                if clean == "[credentials]":
+                    in_creds = True
+                    new_lines.append(line)
+                    continue
+                
+                if in_creds and clean.startswith("["): # Next section
+                    in_creds = False
+                
+                if in_creds:
+                    if clean.startswith("key_id"):
+                        new_lines.append(f'key_id = "{args.key_id}"')
+                        keys_written["key_id"] = True
+                    elif clean.startswith("secret_key"):
+                        new_lines.append(f'secret_key = "{args.secret_key}"')
+                        keys_written["secret_key"] = True
+                    else:
+                        new_lines.append(line)
+                else:
+                    new_lines.append(line)
+            
+            # If we didn't find the keys to replace, we need to append them after [credentials]
+            # Reread logic: This is complex to get right with just loop.
+            # Alternative: Just append to end of file if we know it's enabled.
+            # But we want to update if exists.
+            
+            # Let's stick to the "Security Lock" check being the main value.
+            # If passed, we will just append/update.
+            # Actually, if the user enabled the flag, they likely have the section.
+            
+            # Let's rewrite the file with a simplistic parser for now to ensure it works.
+            # If keys weren't written but we passed the lock check, just append them to the end.
+            if not keys_written["key_id"] or not keys_written["secret_key"]:
+                 # Find [credentials] index
+                 try:
+                     creds_idx = next(i for i, l in enumerate(new_lines) if l.strip() == "[credentials]")
+                     # Insert after flag?
+                     # If we are here, it means we saw [credentials] but maybe not the keys.
+                     # Just append to the section.
+                     insert_pos = creds_idx + 1
+                     # Find end of section
+                     while insert_pos < len(new_lines) and not new_lines[insert_pos].strip().startswith("["):
+                         insert_pos += 1
+                     
+                     if not keys_written["key_id"]:
+                         new_lines.insert(insert_pos, f'key_id = "{args.key_id}"')
+                         insert_pos += 1
+                     if not keys_written["secret_key"]:
+                         new_lines.insert(insert_pos, f'secret_key = "{args.secret_key}"')
+                 except StopIteration:
+                     # Section not found? But we found the flag...
+                     # The flag might be commented out or in a weird place, but our string check passed.
+                     # Just append to end.
+                     new_lines.append("")
+                     if not keys_written["key_id"]: new_lines.append(f'key_id = "{args.key_id}"')
+                     if not keys_written["secret_key"]: new_lines.append(f'secret_key = "{args.secret_key}"')
+
+            with open(pv_path, "w") as f:
+                f.write("\n".join(new_lines) + "\n")
+                
+            console.print(f"[success]✅ Credentials saved to pv.toml[/success]")
+            console.print("[dim]Make sure to exclude this file from version control![/dim]")
 
     elif args.command == "check-env":
         check_cloud_env()

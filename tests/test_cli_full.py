@@ -24,7 +24,7 @@ class TestCliFull:
 
         for cmd, target in commands:
             if cmd in ["push", "pull"]:
-                with patch("src.cli.get_credentials", return_value=("id", "key")):
+                with patch("src.cli.credentials.resolve_credentials", return_value=("id", "key", "MockSource")):
                     with patch(target) as mock_target:
                         with patch.object(sys, 'argv', ['pv', cmd, '/tmp/vault', '--bucket', 'b']):
                             cli.main()
@@ -62,7 +62,7 @@ class TestCliFull:
 
     def test_cli_push_exception(self):
         with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault', 'bucket': 'bkt'}):
-            with patch("src.cli.get_credentials", return_value=("id", "key")):
+            with patch("src.cli.credentials.resolve_credentials", return_value=("id", "key", "MockSource")):
                 with patch("projectclone.sync_engine.sync_to_cloud", side_effect=Exception("Push fail")):
                     with patch.object(sys, 'argv', ['pv', 'push']):
                         with pytest.raises(SystemExit):
@@ -70,7 +70,7 @@ class TestCliFull:
 
     def test_cli_pull_exception(self):
         with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault', 'bucket': 'bkt'}):
-            with patch("src.cli.get_credentials", return_value=("id", "key")):
+            with patch("src.cli.credentials.resolve_credentials", return_value=("id", "key", "MockSource")):
                 with patch("projectclone.sync_engine.sync_from_cloud", side_effect=Exception("Pull fail")):
                     with patch.object(sys, 'argv', ['pv', 'pull']):
                         with pytest.raises(SystemExit):

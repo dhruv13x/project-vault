@@ -25,30 +25,15 @@ class TestSrcCliExtended:
         assert cli.resolve_path("/tmp") == "/tmp"
         # Can't easily test expansion without mocking os.environ or os.path.expanduser
 
-    def test_inject_doppler_secrets(self, monkeypatch, capsys):
-        monkeypatch.setenv("DOPPLER_TOKEN", "token")
-
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_response = MagicMock()
-            mock_response.__enter__.return_value = mock_response
-            mock_response.read.return_value = b'{"SECRET": "VALUE"}'
-            # json.load reads from file-like object
-
-            # Mock json.load directly is easier if urlopen returns a file-like
-            # but mocking urlopen context manager is standard.
-            # We need to mock json.load or make urlopen return something json.load accepts.
-            pass
-            # Skipping complex mock for now, testing the early exit branch
-
-        monkeypatch.delenv("DOPPLER_TOKEN", raising=False)
-        cli.inject_doppler_secrets() # Should return early
-        # No output assertion needed for early return
-
     def test_get_credentials_aws_env(self, monkeypatch):
         monkeypatch.setenv("PV_AWS_ACCESS_KEY_ID", "pv_aws_key")
         monkeypatch.setenv("PV_AWS_SECRET_ACCESS_KEY", "pv_aws_secret")
 
-        key, secret = cli.get_credentials()
+        class DummyArgs:
+            key_id = None
+            secret_key = None
+
+        key, secret, source = cli.credentials.resolve_credentials(DummyArgs())
         assert key == "pv_aws_key"
         assert secret == "pv_aws_secret"
 
@@ -59,7 +44,11 @@ class TestSrcCliExtended:
         monkeypatch.setenv("PV_B2_KEY_ID", "pv_b2_key")
         monkeypatch.setenv("PV_B2_APP_KEY", "pv_b2_app")
 
-        key, secret = cli.get_credentials()
+        class DummyArgs:
+            key_id = None
+            secret_key = None
+
+        key, secret, source = cli.credentials.resolve_credentials(DummyArgs())
         assert key == "pv_b2_key"
         assert secret == "pv_b2_app"
 
@@ -159,10 +148,10 @@ class TestSrcCliExtended:
 
     @patch("src.cli.config.load_project_config")
     @patch("projectclone.list_engine.list_cloud_snapshots")
-    @patch("src.cli.get_credentials")
+    @patch("src.cli.credentials.resolve_credentials")
     def test_list_command_cloud(self, mock_creds, mock_list, mock_config):
         mock_config.return_value = {}
-        mock_creds.return_value = ("key", "secret")
+        mock_creds.return_value = ("key", "secret", "Mock")
         test_args = ["pv", "list", "--cloud", "--bucket", "mybucket"]
         with patch.object(sys, 'argv', test_args):
              cli.main()
@@ -170,10 +159,10 @@ class TestSrcCliExtended:
 
     @patch("src.cli.config.load_project_config")
     @patch("projectclone.sync_engine.sync_to_cloud")
-    @patch("src.cli.get_credentials")
+    @patch("src.cli.credentials.resolve_credentials")
     def test_push_command(self, mock_creds, mock_sync, mock_config):
         mock_config.return_value = {}
-        mock_creds.return_value = ("key", "secret")
+        mock_creds.return_value = ("key", "secret", "Mock")
         test_args = ["pv", "push", "/tmp/vault", "--bucket", "mybucket"]
         with patch.object(sys, 'argv', test_args):
              cli.main()
@@ -181,10 +170,10 @@ class TestSrcCliExtended:
 
     @patch("src.cli.config.load_project_config")
     @patch("projectclone.sync_engine.sync_from_cloud")
-    @patch("src.cli.get_credentials")
+    @patch("src.cli.credentials.resolve_credentials")
     def test_pull_command(self, mock_creds, mock_sync, mock_config):
         mock_config.return_value = {}
-        mock_creds.return_value = ("key", "secret")
+        mock_creds.return_value = ("key", "secret", "Mock")
         test_args = ["pv", "pull", "/tmp/vault", "--bucket", "mybucket"]
         with patch.object(sys, 'argv', test_args):
              cli.main()

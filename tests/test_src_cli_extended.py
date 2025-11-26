@@ -10,14 +10,22 @@ class TestCliExtended:
     # --- CLI Utils Tests ---
     def test_get_credentials_b2(self):
         with patch.dict(os.environ, {"PV_B2_KEY_ID": "k", "PV_B2_APP_KEY": "a"}, clear=True):
-            k, a = cli.get_credentials()
+            class DummyArgs:
+                key_id = None
+                secret_key = None
+            k, a, s = cli.credentials.resolve_credentials(DummyArgs())
             assert k == "k" and a == "a"
 
     def test_check_cloud_env(self, capsys):
         with patch.dict(os.environ, {"PV_B2_KEY_ID": "k", "PV_B2_APP_KEY": "a"}, clear=True):
-            cli.check_cloud_env()
-        captured = capsys.readouterr()
-        assert "Found PV-prefixed B2 Credentials" in captured.out
+            # Mock resolve_credentials to return a successful tuple with "Environment" source
+            with patch('src.cli.credentials.resolve_credentials', return_value=("k", "a", "Environment")) as mock_resolve_creds:
+                cli.check_cloud_env()
+                # Ensure resolve_credentials was called
+                mock_resolve_creds.assert_called_once()
+
+            captured = capsys.readouterr()
+            assert "Cloud Credentials Found (Source: Environment)" in captured.out
 
     # --- CLI Interactive Errors ---
     def test_cli_vault_no_path(self, capsys):

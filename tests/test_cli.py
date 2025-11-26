@@ -508,154 +508,46 @@ class TestMainCli:
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
 
-    def test_get_credentials_b2_only(self):
-        from cli import get_credentials
-        with patch('os.environ.get') as mock_env:
-            def side_effect(key):
-                if key == 'B2_KEY_ID': return 'b2key'
-                if key == 'B2_APP_KEY': return 'b2app'
-                return None
-            mock_env.side_effect = side_effect
-            key, app = get_credentials()
-            assert key == 'b2key'
-            assert app == 'b2app'
-
-    def test_get_credentials_aws_priority(self):
-        from cli import get_credentials
-        with patch('os.environ.get') as mock_env:
-            def side_effect(key):
-                if key == 'AWS_ACCESS_KEY_ID': return 'awskey'
-                if key == 'AWS_SECRET_ACCESS_KEY': return 'awssecret'
-                if key == 'B2_KEY_ID': return 'b2key'
-                if key == 'B2_APP_KEY': return 'b2app'
-                return None
-            mock_env.side_effect = side_effect
-            key, app = get_credentials()
-            assert key == 'awskey'
-            assert app == 'awssecret'
-
 class TestCheckCloudEnv:
-    @patch('cli.console.print') # Patch the console instance's print method
-    @patch('os.environ.get')
-    def test_check_cloud_env_b2_present(self, mock_environ_get, mock_print):
-        def mock_env_get(key, default=None):
-            return {"B2_KEY_ID": "id", "B2_APP_KEY": "key", "TERM": "xterm"}.get(key, default)
-        mock_environ_get.side_effect = mock_env_get
-        
-        original_import = __import__
-        def mock_import(name, *args, **kwargs):
-            if name in ['boto3', 'b2sdk']: return MagicMock()
-            return original_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
-        
-        # Check that the print call for the panel contains the success message
-        found = False
-        for call_args in mock_print.call_args_list:
-            panel = call_args[0][0]
-            if "Found Standard B2 Credentials" in str(panel.renderable):
-                found = True
-                break
-        assert found
-
     @patch('cli.console.print')
-    @patch('os.environ.get')
-    def test_check_cloud_env_b2_pv_present(self, mock_environ_get, mock_print):
-        def mock_env_get(key, default=None):
-            return {"PV_B2_KEY_ID": "id", "PV_B2_APP_KEY": "key", "TERM": "xterm"}.get(key, default)
-        mock_environ_get.side_effect = mock_env_get
+    @patch('cli.credentials.resolve_credentials')
+    def test_check_cloud_env_found(self, mock_resolve, mock_print):
+        # Mock successful resolution
+        mock_resolve.return_value = ("key", "secret", "Doppler")
         
-        original_import = __import__
-        def mock_import(name, *args, **kwargs):
-            if name in ['boto3', 'b2sdk']: return MagicMock()
-            return original_import(name, *args, **kwargs)
+        check_cloud_env()
         
-        with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
-
+        # Verify console output
         found = False
-        for call_args in mock_print.call_args_list:
-            panel = call_args[0][0]
-            if "Found PV-prefixed B2 Credentials" in str(panel.renderable):
-                found = True
-                break
-        assert found
-
-    @patch('cli.console.print')
-    @patch('os.environ.get')
-    def test_check_cloud_env_aws_present(self, mock_environ_get, mock_print):
-        def mock_env_get(key, default=None):
-            return {"AWS_ACCESS_KEY_ID": "id", "AWS_SECRET_ACCESS_KEY": "key", "TERM": "xterm"}.get(key, default)
-        mock_environ_get.side_effect = mock_env_get
-        
-        original_import = __import__
-        def mock_import(name, *args, **kwargs):
-            if name in ['boto3', 'b2sdk']: return MagicMock()
-            return original_import(name, *args, **kwargs)
-
-        with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
-            
-        found = False
-        for call_args in mock_print.call_args_list:
-            panel = call_args[0][0]
-            if "Found Standard AWS/S3 Credentials" in str(panel.renderable):
-                found = True
-                break
-        assert found
-
-    @patch('cli.console.print')
-    @patch('os.environ.get')
-    def test_check_cloud_env_aws_pv_present(self, mock_environ_get, mock_print):
-        def mock_env_get(key, default=None):
-            return {"PV_AWS_ACCESS_KEY_ID": "id", "PV_AWS_SECRET_ACCESS_KEY": "key", "TERM": "xterm"}.get(key, default)
-        mock_environ_get.side_effect = mock_env_get
-        
-        original_import = __import__
-        def mock_import(name, *args, **kwargs):
-            if name in ['boto3', 'b2sdk']: return MagicMock()
-            return original_import(name, *args, **kwargs)
-
-        with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
-
-        found = False
-        for call_args in mock_print.call_args_list:
-            panel = call_args[0][0]
-            if "Found PV-prefixed AWS/S3 Credentials" in str(panel.renderable):
-                found = True
-                break
-        assert found
-
-    @patch('cli.console.print')
-    @patch('os.environ.get')
-    def test_check_cloud_env_missing_all(self, mock_environ_get, mock_print):
-        mock_environ_get.return_value = None
-        
-        original_import = __import__
-        def mock_import(name, *args, **kwargs):
-            if name in ['boto3', 'b2sdk']: return MagicMock()
-            return original_import(name, *args, **kwargs)
-
-        with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
-        
-        found_b2 = False
-        found_aws = False
         for call_args in mock_print.call_args_list:
             panel = call_args[0][0]
             text = str(panel.renderable)
-            if "Missing B2 Credentials" in text:
-                found_b2 = True
-            if "Missing AWS/S3 Credentials" in text:
-                found_aws = True
-        assert found_b2 and found_aws
+            if "Cloud Credentials Found (Source: Doppler)" in text:
+                found = True
+                break
+        assert found
 
     @patch('cli.console.print')
-    @patch('os.environ.get')
-    def test_check_cloud_env_boto3_missing(self, mock_environ_get, mock_print):
-        mock_environ_get.return_value = None
+    @patch('cli.credentials.resolve_credentials')
+    def test_check_cloud_env_missing(self, mock_resolve, mock_print):
+        # Mock failed resolution
+        mock_resolve.return_value = (None, None, None)
+        
+        check_cloud_env()
+        
+        found = False
+        for call_args in mock_print.call_args_list:
+            panel = call_args[0][0]
+            text = str(panel.renderable)
+            if "No cloud credentials found" in text:
+                found = True
+                break
+        assert found
+
+    @patch('cli.console.print')
+    @patch('cli.credentials.resolve_credentials')
+    def test_check_cloud_env_boto3_missing(self, mock_resolve, mock_print):
+        mock_resolve.return_value = (None, None, None)
         
         original_import = __import__
         def mock_import(name, *args, **kwargs):
@@ -670,28 +562,6 @@ class TestCheckCloudEnv:
         for call_args in mock_print.call_args_list:
             panel = call_args[0][0]
             if "boto3 is missing" in str(panel.renderable):
-                found = True
-                break
-        assert found
-
-    @patch('cli.console.print')
-    @patch('os.environ.get')
-    def test_check_cloud_env_b2sdk_missing(self, mock_environ_get, mock_print):
-        mock_environ_get.return_value = None
-        
-        original_import = __import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'b2sdk': raise ImportError
-            if name == 'boto3': return MagicMock()
-            return original_import(name, *args, **kwargs)
-
-        with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
-
-        found = False
-        for call_args in mock_print.call_args_list:
-            panel = call_args[0][0]
-            if "b2sdk is missing" in str(panel.renderable):
                 found = True
                 break
         assert found

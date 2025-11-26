@@ -82,6 +82,13 @@ endpoint = "https://s3.eu-central-003.backblazeb2.com"
 # post_snapshot = "echo 'Snapshot finished.'"
 # pre_restore = "echo 'Restore starting...'"
 # post_restore = "echo 'Restore finished.'"
+
+# --- Insecure Credentials Storage (Optional) ---
+# WARNING: Only enable this on secure, private machines.
+# [credentials]
+# allow_insecure_storage = false # Set to true to enable
+# key_id = "..."
+# secret_key = "..."
 """
     try:
         with open(target_path, "w", encoding="utf-8") as f:
