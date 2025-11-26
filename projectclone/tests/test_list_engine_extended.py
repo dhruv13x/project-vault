@@ -57,7 +57,7 @@ class TestListEngineExtended:
             list_engine.list_cloud_snapshots("bucket", "id", "key")
 
         captured = capsys.readouterr()
-        assert "No snapshots found" in captured.out
+        assert "No vault snapshots found in bucket 'bucket'." in captured.out
 
     def test_list_cloud_snapshots_error(self, capsys):
         with patch("src.common.b2.B2Manager", side_effect=Exception("Auth fail")):
