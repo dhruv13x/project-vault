@@ -81,7 +81,7 @@ class TestListCloudSnapshots:
         list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key")
         captured = capsys.readouterr()
         
-        assert "Cloud Snapshots in Bucket: 'test-bucket'" in captured.out
+        assert "Cloud Vault Snapshots in Bucket: 'test-bucket'" in captured.out
         assert "proj1" in captured.out
         assert "proj2" in captured.out
 
@@ -93,7 +93,7 @@ class TestListCloudSnapshots:
         list_engine.list_cloud_snapshots("test-bucket", "key_id", "app_key")
         captured = capsys.readouterr()
         
-        assert "No snapshots found in the cloud bucket" in captured.out
+        assert "No vault snapshots found in bucket 'test-bucket'" in captured.out
 
     @patch('src.common.b2.B2Manager', side_effect=Exception("B2 Connection Error"))
     def test_cloud_connection_error(self, MockB2Manager, capsys):
