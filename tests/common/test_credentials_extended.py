@@ -112,7 +112,8 @@ def test_resolve_credentials_cli(mock_args):
     assert source == "CLI"
 
 def test_resolve_credentials_env(mock_args):
-    with patch.dict(os.environ, {"PV_AWS_ACCESS_KEY_ID": "env_key", "PV_AWS_SECRET_ACCESS_KEY": "env_secret"}):
+    with patch.dict(os.environ, {"PV_AWS_ACCESS_KEY_ID": "env_key", "PV_AWS_SECRET_ACCESS_KEY": "env_secret"}), \
+         patch("src.common.credentials.get_doppler_secrets", return_value={}):
         k, s, source = credentials.resolve_credentials(mock_args)
         assert k == "env_key"
         assert s == "env_secret"

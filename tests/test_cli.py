@@ -95,8 +95,14 @@ def mock_gc_engine():
     with patch.dict('sys.modules', {'projectclone': MagicMock(), 'projectclone.gc_engine': MagicMock()}):
         yield sys.modules['projectclone'].gc_engine
 
+@pytest.fixture
+def mock_full_env():
+    with patch('cli.credentials.get_full_env') as mock_get_env:
+        mock_get_env.return_value = {}
+        yield mock_get_env
+
 class TestMainCli:
-    def test_backup_passthrough(self, mock_sys_exit, mock_projectclone_cli, mock_config_load):
+    def test_backup_passthrough(self, mock_sys_exit, mock_projectclone_cli, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'backup', 'arg1', 'arg2']
 
         # We need to ensure importlib.import_module works as expected.
@@ -111,7 +117,7 @@ class TestMainCli:
         mock_projectclone_cli.main.assert_called_once()
         assert sys.argv == ['projectclone', 'arg1', 'arg2']
 
-    def test_archive_restore_passthrough(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load):
+    def test_archive_restore_passthrough(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'archive-restore', 'arg1']
         
         mock_sys_exit.side_effect = SystemExit(0)
@@ -123,7 +129,7 @@ class TestMainCli:
         mock_projectrestore_cli.main.assert_called_once()
         assert sys.argv == ['projectrestore', 'arg1']
 
-    def test_backup_passthrough_with_config_dest(self, mock_sys_exit, mock_projectclone_cli):
+    def test_backup_passthrough_with_config_dest(self, mock_sys_exit, mock_projectclone_cli, mock_full_env):
          with patch('cli.config.load_project_config', return_value={'vault_path': '/config/vault'}) as mock_load:
             sys.argv = ['pv', 'backup', 'src']
             mock_sys_exit.side_effect = SystemExit(0)
@@ -135,7 +141,7 @@ class TestMainCli:
             assert '--dest' in sys.argv
             assert '/config/vault' in sys.argv
 
-    def test_no_command_prints_help(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_no_command_prints_help(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv']
         mock_sys_exit.side_effect = SystemExit(0) # Ensure it exits
         try:
@@ -149,7 +155,7 @@ class TestMainCli:
         assert "Cloud Commands" in output
         mock_sys_exit.assert_called_once_with(0)
 
-    def test_clone_command_dispatches(self, mock_sys_exit, mock_projectclone_cli, mock_config_load):
+    def test_clone_command_dispatches(self, mock_sys_exit, mock_projectclone_cli, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'backup', 'source_dir', '--dest', 'dest_dir']
         try:
              main()
@@ -158,7 +164,7 @@ class TestMainCli:
         mock_projectclone_cli.main.assert_called_once()
         assert sys.argv == ['projectclone', 'source_dir', '--dest', 'dest_dir']
 
-    def test_clone_command_dispatches_with_vault_path_from_config(self, mock_sys_exit, mock_projectclone_cli):
+    def test_clone_command_dispatches_with_vault_path_from_config(self, mock_sys_exit, mock_projectclone_cli, mock_full_env):
         with patch('cli.config.load_project_config', return_value={'vault_path': '/config/vault'}) as mock_load:
             sys.argv = ['pv', 'backup', 'source_dir']
             try:
@@ -168,7 +174,7 @@ class TestMainCli:
             mock_projectclone_cli.main.assert_called_once()
             assert sys.argv == ['projectclone', 'source_dir', '--dest', '/config/vault']
 
-    def test_restore_command_dispatches(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load):
+    def test_restore_command_dispatches(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'archive-restore', 'some_arg']
         try:
              main()
@@ -177,7 +183,7 @@ class TestMainCli:
         mock_projectrestore_cli.main.assert_called_once()
         assert sys.argv == ['projectrestore', 'some_arg']
 
-    def test_vault_command_calls_cas_engine(self, mock_sys_exit, mock_cas_engine, mock_config_load):
+    def test_vault_command_calls_cas_engine(self, mock_sys_exit, mock_cas_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path']
         main()
         mock_cas_engine.backup_to_vault.assert_called_once_with(
@@ -188,7 +194,7 @@ class TestMainCli:
         )
         mock_sys_exit.assert_not_called()
 
-    def test_vault_command_with_name_calls_cas_engine(self, mock_sys_exit, mock_cas_engine, mock_config_load):
+    def test_vault_command_with_name_calls_cas_engine(self, mock_sys_exit, mock_cas_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path', '--name', 'custom_name']
         main()
         mock_cas_engine.backup_to_vault.assert_called_once_with(
@@ -199,7 +205,7 @@ class TestMainCli:
         )
         mock_sys_exit.assert_not_called()
 
-    def test_vault_command_missing_vault_path_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine, mock_config_load):
+    def test_vault_command_missing_vault_path_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault', 'my_source'] 
         mock_sys_exit.side_effect = SystemExit(1) # CRITICAL: Ensure it stops execution
         try:
@@ -211,7 +217,7 @@ class TestMainCli:
         mock_sys_exit.assert_called_once_with(1)
         mock_cas_engine.backup_to_vault.assert_not_called()
 
-    def test_vault_command_missing_vault_path_from_config_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine):
+    def test_vault_command_missing_vault_path_from_config_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine, mock_full_env):
         with patch('cli.config.load_project_config', return_value={'vault_path': None}) as mock_load:
             sys.argv = ['pv', 'vault', 'my_source']
             mock_sys_exit.side_effect = SystemExit(1) # CRITICAL: Ensure it stops execution
@@ -224,7 +230,7 @@ class TestMainCli:
             mock_sys_exit.assert_called_once_with(1)
             mock_cas_engine.backup_to_vault.assert_not_called()
 
-    def test_vault_restore_command_calls_restore_engine(self, mock_sys_exit, mock_restore_engine, mock_config_load):
+    def test_vault_restore_command_calls_restore_engine(self, mock_sys_exit, mock_restore_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault-restore', 'manifest.json', 'restore_dest']
         main()
         mock_restore_engine.restore_snapshot.assert_called_once_with(
@@ -234,14 +240,14 @@ class TestMainCli:
         )
         mock_sys_exit.assert_not_called()
 
-    def test_check_env_command_calls_check_cloud_env(self, mock_sys_exit, mock_config_load):
+    def test_check_env_command_calls_check_cloud_env(self, mock_sys_exit, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'check-env']
         with patch('cli.check_cloud_env') as mock_check_env:
             main()
             mock_check_env.assert_called_once()
             mock_sys_exit.assert_not_called() 
 
-    def test_sync_command_missing_env_vars(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
+    def test_sync_command_missing_env_vars(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         mock_sys_exit.side_effect = SystemExit(1)
         def mock_env_get(key, default=None):
@@ -258,7 +264,7 @@ class TestMainCli:
             mock_sys_exit.assert_called_with(1)
             mock_sync_engine.sync_to_cloud.assert_not_called()
 
-    def test_sync_command_missing_b2_key_id(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
+    def test_sync_command_missing_b2_key_id(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         mock_sys_exit.side_effect = SystemExit(1)
         def mock_env_get(key, default=None):
@@ -276,7 +282,7 @@ class TestMainCli:
             mock_sys_exit.assert_called_with(1)
             mock_sync_engine.sync_to_cloud.assert_not_called()
 
-    def test_sync_command_missing_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
+    def test_sync_command_missing_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine, mock_full_env):
         mock_config_load.return_value = {'vault_path': '/vault'}
         sys.argv = ['pv', 'push', '/vault'] 
         mock_sys_exit.side_effect = SystemExit(1)
@@ -292,7 +298,7 @@ class TestMainCli:
         mock_sys_exit.assert_called_with(1)
         mock_sync_engine.sync_to_cloud.assert_not_called()
 
-    def test_sync_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+    def test_sync_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         def mock_env_get(key, default=None):
             if key in ['B2_KEY_ID', 'B2_APP_KEY']: return 'val'
@@ -304,7 +310,7 @@ class TestMainCli:
                 os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=False
             )
 
-    def test_sync_command_dry_run(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+    def test_sync_command_dry_run(self, mock_sys_exit, mock_sync_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e', '--dry-run']
         def mock_env_get(key, default=None):
             if key in ['B2_KEY_ID', 'B2_APP_KEY']: return 'val'
@@ -316,7 +322,7 @@ class TestMainCli:
                 os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=True
             )
 
-    def test_pull_command_invalid_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine):
+    def test_pull_command_invalid_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine, mock_full_env):
         sys.argv = ['pv', 'pull', '/vault']
         mock_sys_exit.side_effect = SystemExit(1)
         try:
@@ -329,7 +335,7 @@ class TestMainCli:
         mock_sys_exit.assert_called_with(1)
         mock_sync_engine.sync_from_cloud.assert_not_called()
 
-    def test_pull_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+    def test_pull_command_success(self, mock_sys_exit, mock_sync_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'pull', '/vault', '--bucket', 'b', '--endpoint', 'e']
         def mock_env_get(key, default=None):
             if key in ['B2_KEY_ID', 'B2_APP_KEY']: return 'val'
@@ -341,7 +347,7 @@ class TestMainCli:
                 os.path.abspath('/vault'), 'b', 'e', 'val', 'val', dry_run=False
             )
 
-    def test_pull_command_dry_run(self, mock_sys_exit, mock_sync_engine, mock_config_load):
+    def test_pull_command_dry_run(self, mock_sys_exit, mock_sync_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'pull', '/vault', '--bucket', 'b', '--endpoint', 'e', '--dry-run']
         def mock_env_get(key, default=None):
             if key in ['B2_KEY_ID', 'B2_APP_KEY']: return 'val'
@@ -354,31 +360,31 @@ class TestMainCli:
             )
 
 
-    def test_init_pyproject(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_init_pyproject(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'init', '--pyproject']
         main()
         output = capture_stdout()
         assert "[tool.project-vault]" in output
 
-    def test_init_default(self, mock_sys_exit, mock_config_load):
+    def test_init_default(self, mock_sys_exit, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'init']
         with patch('cli.config.generate_init_file') as mock_gen:
             main()
             mock_gen.assert_called_once_with("pv.toml")
 
-    def test_check_integrity(self, mock_sys_exit, mock_integrity_engine, mock_config_load):
+    def test_check_integrity(self, mock_sys_exit, mock_integrity_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'check-integrity', '/vault']
         mock_integrity_engine.verify_vault.return_value = True
         main()
         mock_integrity_engine.verify_vault.assert_called_once_with(os.path.abspath('/vault'))
 
-    def test_check_integrity_success(self, mock_sys_exit, mock_integrity_engine, mock_config_load):
+    def test_check_integrity_success(self, mock_sys_exit, mock_integrity_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'check-integrity', '/vault']
         mock_integrity_engine.verify_vault.return_value = True
         main()
         mock_integrity_engine.verify_vault.assert_called_once()
 
-    def test_clone_import_error(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_clone_import_error(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'backup', 'src']
         mock_sys_exit.side_effect = SystemExit(1)
 
@@ -391,7 +397,7 @@ class TestMainCli:
             output = capture_stdout()
             assert "Error executing command 'backup': No module named projectclone" in output
 
-    def test_restore_import_error(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_restore_import_error(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'archive-restore', 'src']
         mock_sys_exit.side_effect = SystemExit(1)
 
@@ -403,7 +409,7 @@ class TestMainCli:
             output = capture_stdout()
             assert "Error executing command 'archive-restore': No module named projectrestore" in output
 
-    def test_list_cloud_success(self, mock_sys_exit, mock_list_engine, mock_config_load):
+    def test_list_cloud_success(self, mock_sys_exit, mock_list_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list', '--cloud', '--bucket', 'my-bucket']
         def mock_env_get(key, default=None):
             if key in ['B2_KEY_ID', 'B2_APP_KEY']: return 'val'
@@ -413,7 +419,7 @@ class TestMainCli:
             main()
             mock_list_engine.list_cloud_snapshots.assert_called_once_with('my-bucket', 'val', 'val', None)
 
-    def test_list_cloud_missing_bucket(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_list_cloud_missing_bucket(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list', '--cloud']
         mock_sys_exit.side_effect = SystemExit(1)
         try:
@@ -424,7 +430,7 @@ class TestMainCli:
         assert "Error" in output
         assert "bucket must be specified" in output
 
-    def test_list_cloud_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_list_cloud_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list', '--cloud', '--bucket', 'my-bucket']
         def mock_env_get(key, default=None):
             if key == 'TERM': return 'xterm'
@@ -439,12 +445,12 @@ class TestMainCli:
             assert "Error" in output
             assert "Cloud credentials missing" in output
 
-    def test_list_local_success(self, mock_sys_exit, mock_list_engine, mock_config_load):
+    def test_list_local_success(self, mock_sys_exit, mock_list_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list', '/vault']
         main()
         mock_list_engine.list_local_snapshots.assert_called_once_with(os.path.abspath('/vault'))
 
-    def test_list_local_missing_vault(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_list_local_missing_vault(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list']
         mock_config_load.return_value = {'vault_path': None}
         mock_sys_exit.side_effect = SystemExit(1)
@@ -455,12 +461,12 @@ class TestMainCli:
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
 
-    def test_gc_command(self, mock_sys_exit, mock_gc_engine, mock_config_load):
+    def test_gc_command(self, mock_sys_exit, mock_gc_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'gc', '/vault', '--dry-run']
         main()
         mock_gc_engine.run_garbage_collection.assert_called_once_with(os.path.abspath('/vault'), True)
 
-    def test_push_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_push_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'push']
         mock_config_load.return_value = {'vault_path': None}
         mock_sys_exit.side_effect = SystemExit(1)
@@ -471,7 +477,7 @@ class TestMainCli:
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
 
-    def test_push_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_push_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
         def mock_env_get(key, default=None):
             if key == 'TERM': return 'xterm'
@@ -486,7 +492,7 @@ class TestMainCli:
             assert "Error" in output
             assert "Cloud credentials missing" in output
 
-    def test_pull_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_pull_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'pull']
         mock_config_load.return_value = {'vault_path': None}
         mock_sys_exit.side_effect = SystemExit(1)
@@ -497,7 +503,7 @@ class TestMainCli:
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
 
-    def test_gc_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load):
+    def test_gc_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'gc']
         mock_config_load.return_value = {'vault_path': None}
         mock_sys_exit.side_effect = SystemExit(1)
@@ -507,6 +513,7 @@ class TestMainCli:
             pass
         output = capture_stdout()
         assert "Error: vault_path must be specified" in output
+
 
 class TestCheckCloudEnv:
     @patch('cli.console.print')

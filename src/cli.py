@@ -93,21 +93,21 @@ def check_cloud_env():
         # Get provider info
         provider, bucket, endpoint = credentials.get_cloud_provider_info()
         
-        status_text.append("\n[bold]Configuration:[/bold]\n")
+        status_text.append(Text.from_markup("\n[bold]Configuration:[/bold]\n"))
         if provider and provider != "Unknown":
-            status_text.append(f"   Cloud Provider: [bold cyan]{provider}[/bold cyan]\n")
+            status_text.append(Text.from_markup(f"   Cloud Provider: [bold cyan]{provider}[/bold cyan]\n"))
         else:
-            status_text.append(f"   Cloud Provider: [yellow]Unknown (could not infer from credentials or endpoint)[/yellow]\n")
+            status_text.append(Text.from_markup(f"   Cloud Provider: [yellow]Unknown (could not infer from credentials or endpoint)[/yellow]\n"))
 
         if bucket:
-            status_text.append(f"   Bucket: [bold cyan]{bucket}[/bold cyan]\n")
+            status_text.append(Text.from_markup(f"   Bucket: [bold cyan]{bucket}[/bold cyan]\n"))
         else:
-            status_text.append(f"   Bucket: [yellow]Not Configured (set in pv.toml or PV_BUCKET env var)[/yellow]\n")
+            status_text.append(Text.from_markup(f"   Bucket: [yellow]Not Configured (set in pv.toml or PV_BUCKET env var)[/yellow]\n"))
 
         if endpoint:
-            status_text.append(f"   Endpoint: [bold cyan]{endpoint}[/bold cyan]\n")
+            status_text.append(Text.from_markup(f"   Endpoint: [bold cyan]{endpoint}[/bold cyan]\n"))
         else:
-            status_text.append(f"   Endpoint: [dim]Not set (will use provider default)[/dim]\n")
+            status_text.append(Text.from_markup(f"   Endpoint: [dim]Not set (will use provider default)[/dim]\n"))
 
     else:
          status_text.append("\n❌ No cloud credentials found.\n", style="error")
@@ -115,7 +115,7 @@ def check_cloud_env():
          status_text.append("   Tip: Prefix with PV_ to isolate credentials for this tool (e.g. PV_AWS_ACCESS_KEY_ID).", style="dim")
 
     # Check Libraries
-    status_text.append("\n[bold]Library Status:[/bold]\n")
+    status_text.append(Text.from_markup("\n[bold]Library Status:[/bold]\n"))
     try:
         import boto3
         status_text.append("   ✅ boto3 is installed\n", style="success")

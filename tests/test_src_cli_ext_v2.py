@@ -33,9 +33,10 @@ class TestSrcCliExtended:
             key_id = None
             secret_key = None
 
-        key, secret, source = cli.credentials.resolve_credentials(DummyArgs())
-        assert key == "pv_aws_key"
-        assert secret == "pv_aws_secret"
+        with patch("cli.credentials.get_doppler_secrets", return_value={}):
+            key, secret, source = cli.credentials.resolve_credentials(DummyArgs())
+            assert key == "pv_aws_key"
+            assert secret == "pv_aws_secret"
 
     def test_get_credentials_b2_env(self, monkeypatch):
         monkeypatch.delenv("PV_AWS_ACCESS_KEY_ID", raising=False)
@@ -48,9 +49,10 @@ class TestSrcCliExtended:
             key_id = None
             secret_key = None
 
-        key, secret, source = cli.credentials.resolve_credentials(DummyArgs())
-        assert key == "pv_b2_key"
-        assert secret == "pv_b2_app"
+        with patch("cli.credentials.get_doppler_secrets", return_value={}):
+            key, secret, source = cli.credentials.resolve_credentials(DummyArgs())
+            assert key == "pv_b2_key"
+            assert secret == "pv_b2_app"
 
     def test_check_cloud_env(self, capsys):
         cli.check_cloud_env()
@@ -209,7 +211,8 @@ class TestSrcCliExtended:
 
     @patch("src.cli.config.load_project_config")
     @patch("projectrestore.cli.main")
-    def test_legacy_restore_command(self, mock_restore, mock_config):
+    @patch("src.cli.credentials.get_full_env", return_value={})
+    def test_legacy_restore_command(self, mock_get_env, mock_restore, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "archive-restore", "--dry-run"]
         with patch.object(sys, 'argv', test_args):

@@ -6,8 +6,18 @@ import sys
 import os
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+
+# Add project root to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from projectclone import cli
 from projectclone import backup
+
+@pytest.fixture
+def mock_credentials_module():
+    mock_creds = MagicMock()
+    with patch.dict('sys.modules', {'src.common.credentials': mock_creds}):
+        yield mock_creds
 
 class TestCliExtendedV2:
     @pytest.fixture
@@ -32,38 +42,33 @@ class TestCliExtendedV2:
         args.endpoint = None
         return args
 
-    def test_get_cloud_credentials_aws_env(self, monkeypatch):
+    def test_get_cloud_credentials_aws_env(self):
         """Test cloud credentials resolution for AWS from env."""
-        monkeypatch.setenv("PV_AWS_ACCESS_KEY_ID", "pv_aws_key")
-        monkeypatch.setenv("PV_AWS_SECRET_ACCESS_KEY", "pv_aws_secret")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve_credentials.return_value = ("pv_aws_key", "pv_aws_secret", "Environment")
+        mock_resolver.get_cloud_provider_info.return_value = ("AWS S3", None, None)
 
-        provider, key, secret = cli.get_cloud_credentials()
+        provider, key, secret = cli.get_cloud_credentials(resolver=mock_resolver)
         assert provider == "s3"
         assert key == "pv_aws_key"
         assert secret == "pv_aws_secret"
 
-    def test_get_cloud_credentials_b2_env(self, monkeypatch):
+    def test_get_cloud_credentials_b2_env(self):
         """Test cloud credentials resolution for B2 from env."""
-        # Unset AWS to ensure B2 is picked
-        monkeypatch.delenv("PV_AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+        mock_resolver = MagicMock()
+        mock_resolver.resolve_credentials.return_value = ("pv_b2_key", "pv_b2_app", "Environment")
+        mock_resolver.get_cloud_provider_info.return_value = ("Backblaze B2", None, None)
 
-        monkeypatch.setenv("PV_B2_KEY_ID", "pv_b2_key")
-        monkeypatch.setenv("PV_B2_APP_KEY", "pv_b2_app")
-
-        provider, key, app = cli.get_cloud_credentials()
+        provider, key, app = cli.get_cloud_credentials(resolver=mock_resolver)
         assert provider == "b2"
         assert key == "pv_b2_key"
         assert app == "pv_b2_app"
 
-    def test_get_cloud_credentials_none(self, monkeypatch):
+    def test_get_cloud_credentials_none(self):
         """Test cloud credentials resolution when none are present."""
-        monkeypatch.delenv("PV_AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("PV_B2_KEY_ID", raising=False)
-        monkeypatch.delenv("B2_KEY_ID", raising=False)
-
-        provider, key, secret = cli.get_cloud_credentials()
+        mock_resolver = MagicMock()
+        mock_resolver.resolve_credentials.return_value = (None, None, None)
+        provider, key, secret = cli.get_cloud_credentials(resolver=mock_resolver)
         assert provider is None
 
     @patch("projectclone.cli.get_cloud_credentials")
@@ -86,7 +91,8 @@ class TestCliExtendedV2:
         log_fp = MagicMock()
         manager = mock_s3.return_value
 
-        cli.upload_to_cloud(Path("testfile"), "bucket", log_fp=log_fp)
+        with patch.dict('sys.modules', {'src.common.b2': MagicMock(), 'src.common.s3': mock_s3}):
+            cli.upload_to_cloud(Path("testfile"), "bucket", log_fp=log_fp)
 
         manager.upload_file.assert_called_with("testfile", "testfile")
         out, _ = capsys.readouterr()
@@ -101,7 +107,8 @@ class TestCliExtendedV2:
         manager = mock_b2.return_value
         manager.upload_file.side_effect = Exception("Upload error")
 
-        cli.upload_to_cloud(Path("testfile"), "bucket", log_fp=log_fp)
+        with patch.dict('sys.modules', {'src.common.b2': mock_b2, 'src.common.s3': MagicMock()}):
+            cli.upload_to_cloud(Path("testfile"), "bucket", log_fp=log_fp)
 
         out, _ = capsys.readouterr()
         assert "Upload failed: Upload error" in out

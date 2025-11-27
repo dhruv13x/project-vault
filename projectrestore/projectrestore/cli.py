@@ -109,23 +109,18 @@ class RichHelpAction(argparse.Action):
         parser.exit()
 
 
-def get_cloud_credentials():
+def get_cloud_credentials(resolver=None):
     """
     Resolves cloud credentials using the main project-vault resolver
     to ensure sources like Doppler are included.
     """
-    try:
-        from src.common import credentials
-    except ImportError:
-        # Try relative import if we are inside the pv structure
+    if resolver is None:
         try:
-            import sys
-            current = Path(__file__).resolve()
-            root = current.parents[2]
-            sys.path.insert(0, str(root / "src"))
-            from src.common import credentials
+            # Import the main credential resolver from the common library
+            from src.common import credentials as resolver
         except ImportError:
-            LOG.error("Could not import 'src.common.credentials' for cloud operations.")
+            # This can happen if the tool is run standalone without the full vault shell
+            print("Error: Could not import 'src.common.credentials' for cloud operations.", file=sys.stderr)
             return None, None, None
 
     # Use a dummy args object for the resolver
@@ -134,18 +129,19 @@ def get_cloud_credentials():
         secret_key = None
 
     # Resolve credentials from all sources (CLI, Doppler, Env, Config)
-    key_id, secret_key, source = credentials.resolve_credentials(DummyArgs(), allow_fail=True)
+    key_id, secret_key, source = resolver.resolve_credentials(DummyArgs(), allow_fail=True)
 
     # If keys are found, determine the provider type (b2 or s3)
     if key_id and secret_key:
-        provider_info, _, _ = credentials.get_cloud_provider_info()
+        provider_info, _, _ = resolver.get_cloud_provider_info()
         provider_type = None
         if provider_info == "Backblaze B2":
             provider_type = "b2"
         elif provider_info == "AWS S3":
             provider_type = "s3"
         
-        LOG.info(f"Authenticated via {source}")
+        # Log the source for better debugging
+        logging.info(f"Authenticated via {source}")
         return provider_type, key_id, secret_key
     
     return None, None, None

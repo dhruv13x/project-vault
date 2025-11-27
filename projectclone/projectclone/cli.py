@@ -108,17 +108,18 @@ class RichHelpAction(argparse.Action):
         parser.exit()
 
 
-def get_cloud_credentials():
+def get_cloud_credentials(resolver=None):
     """
     Resolves cloud credentials using the main project-vault resolver
     to ensure sources like Doppler are included.
     """
-    try:
-        # Import the main credential resolver from the common library
-        from src.common import credentials
-    except ImportError:
-        print("Error: Could not import 'src.common.credentials' for cloud operations.")
-        return None, None, None
+    if resolver is None:
+        try:
+            # Import the main credential resolver from the common library
+            from src.common import credentials as resolver
+        except ImportError:
+            print("Error: Could not import 'src.common.credentials' for cloud operations.")
+            return None, None, None
 
     # Use a dummy args object for the resolver
     class DummyArgs:
@@ -126,11 +127,11 @@ def get_cloud_credentials():
         secret_key = None
 
     # Resolve credentials from all sources (CLI, Doppler, Env, Config)
-    key_id, secret_key, source = credentials.resolve_credentials(DummyArgs(), allow_fail=True)
+    key_id, secret_key, source = resolver.resolve_credentials(DummyArgs(), allow_fail=True)
 
     # If keys are found, determine the provider type (b2 or s3)
     if key_id and secret_key:
-        provider_info, _, _ = credentials.get_cloud_provider_info()
+        provider_info, _, _ = resolver.get_cloud_provider_info()
         provider_type = None
         if provider_info == "Backblaze B2":
             provider_type = "b2"

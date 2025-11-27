@@ -9,7 +9,8 @@ from src import cli
 
 class TestCliFull:
 
-    def test_cli_commands_dispatch(self):
+    @patch("src.cli.credentials.get_full_env", return_value={})
+    def test_cli_commands_dispatch(self, mock_get_env):
         # Verify dispatching for all commands
         commands = [
             ("gc", "projectclone.gc_engine.run_garbage_collection"),

@@ -8,6 +8,14 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 from projectrestore import cli
 
+@pytest.fixture
+def mock_credentials_module():
+    mock_creds = MagicMock()
+    # Since the import is inside a function, we must patch sys.modules
+    # to ensure our mock is loaded by 'from src.common import credentials'
+    with patch.dict('sys.modules', {'src.common.credentials': mock_creds}):
+        yield mock_creds
+
 class TestProjectRestoreCliExtended:
     @pytest.fixture
     def mock_args(self):
@@ -31,36 +39,33 @@ class TestProjectRestoreCliExtended:
         args.file = None
         return args
 
-    def test_get_cloud_credentials_aws_env(self, monkeypatch):
+    def test_get_cloud_credentials_aws_env(self):
         """Test cloud credentials resolution for AWS from env."""
-        monkeypatch.setenv("PV_AWS_ACCESS_KEY_ID", "pv_aws_key")
-        monkeypatch.setenv("PV_AWS_SECRET_ACCESS_KEY", "pv_aws_secret")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve_credentials.return_value = ("pv_aws_key", "pv_aws_secret", "Environment")
+        mock_resolver.get_cloud_provider_info.return_value = ("AWS S3", None, None)
 
-        provider, key, secret = cli.get_cloud_credentials()
+        provider, key, secret = cli.get_cloud_credentials(resolver=mock_resolver)
         assert provider == "s3"
         assert key == "pv_aws_key"
         assert secret == "pv_aws_secret"
 
-    def test_get_cloud_credentials_b2_env(self, monkeypatch):
+    def test_get_cloud_credentials_b2_env(self):
         """Test cloud credentials resolution for B2 from env."""
-        monkeypatch.delenv("PV_AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+        mock_resolver = MagicMock()
+        mock_resolver.resolve_credentials.return_value = ("pv_b2_key", "pv_b2_app", "Environment")
+        mock_resolver.get_cloud_provider_info.return_value = ("Backblaze B2", None, None)
 
-        monkeypatch.setenv("PV_B2_KEY_ID", "pv_b2_key")
-        monkeypatch.setenv("PV_B2_APP_KEY", "pv_b2_app")
-
-        provider, key, app = cli.get_cloud_credentials()
+        provider, key, app = cli.get_cloud_credentials(resolver=mock_resolver)
         assert provider == "b2"
         assert key == "pv_b2_key"
         assert app == "pv_b2_app"
 
-    def test_get_cloud_credentials_none(self, monkeypatch):
-        monkeypatch.delenv("PV_AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("PV_B2_KEY_ID", raising=False)
-        monkeypatch.delenv("B2_KEY_ID", raising=False)
-
-        assert cli.get_cloud_credentials() == (None, None, None)
+    def test_get_cloud_credentials_none(self):
+        """Test cloud credentials resolution when none are present."""
+        mock_resolver = MagicMock()
+        mock_resolver.resolve_credentials.return_value = (None, None, None)
+        assert cli.get_cloud_credentials(resolver=mock_resolver) == (None, None, None)
 
     @patch("projectrestore.cli.get_cloud_credentials")
     def test_download_from_cloud_missing_creds(self, mock_creds, capsys):
@@ -70,21 +75,23 @@ class TestProjectRestoreCliExtended:
 
     @patch("projectrestore.cli.get_cloud_credentials")
     @patch("src.common.s3.S3Manager")
-    def test_download_from_cloud_s3(self, mock_s3, mock_creds):
+    def test_download_from_cloud_s3(self, mock_s3_manager, mock_creds):
         mock_creds.return_value = ("s3", "key", "secret")
-        manager = mock_s3.return_value
-        res = cli.download_from_cloud("bucket", "remote", Path("/tmp/local"))
-        assert res is True
-        manager.download_file.assert_called_with("remote", "/tmp/local")
+        manager = mock_s3_manager.return_value
+        with patch.dict('sys.modules', {'src.common.b2': MagicMock(), 'src.common.s3': MagicMock(S3Manager=mock_s3_manager)}):
+            res = cli.download_from_cloud("bucket", "remote", Path("/tmp/local"))
+            assert res is True
+            manager.download_file.assert_called_with("remote", "/tmp/local")
 
     @patch("projectrestore.cli.get_cloud_credentials")
     @patch("src.common.b2.B2Manager")
-    def test_download_from_cloud_b2(self, mock_b2, mock_creds):
+    def test_download_from_cloud_b2(self, mock_b2_manager, mock_creds):
         mock_creds.return_value = ("b2", "key", "app")
-        manager = mock_b2.return_value
-        res = cli.download_from_cloud("bucket", "remote", Path("/tmp/local"))
-        assert res is True
-        manager.download_file.assert_called_with("remote", "/tmp/local")
+        manager = mock_b2_manager.return_value
+        with patch.dict('sys.modules', {'src.common.b2': MagicMock(B2Manager=mock_b2_manager), 'src.common.s3': MagicMock()}):
+            res = cli.download_from_cloud("bucket", "remote", Path("/tmp/local"))
+            assert res is True
+            manager.download_file.assert_called_with("remote", "/tmp/local")
 
     @patch("projectrestore.cli.restore_engine")
     def test_vault_restore_main(self, mock_engine):
