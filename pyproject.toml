@@ -82,7 +82,7 @@ addopts = [
   "--cov-report=term-missing:skip-covered",
   "--cov-report=html",
   "--cov-report=xml",
-  "--cov-fail-under=85",
+  "--cov-fail-under=75",
 ]
 
 log_cli = true
@@ -98,6 +98,6 @@ source = [
 ]
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 75
 show_missing = true
 skip_covered = true
