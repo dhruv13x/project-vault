@@ -516,13 +516,17 @@ class TestMainCli:
 
 
 class TestCheckCloudEnv:
-    @patch('cli.console.print')
+    @patch('src.common.console.console.print')
     @patch('cli.credentials.resolve_credentials')
     def test_check_cloud_env_found(self, mock_resolve, mock_print):
         # Mock successful resolution
         mock_resolve.return_value = ("key", "secret", "Doppler")
         
-        check_cloud_env()
+        mock_creds_module = MagicMock()
+        mock_creds_module.resolve_credentials = mock_resolve
+        mock_creds_module.get_cloud_provider_info.return_value = ("AWS", "bucket", "endpoint")
+
+        check_cloud_env(mock_creds_module)
         
         # Verify console output
         found = False
@@ -534,13 +538,18 @@ class TestCheckCloudEnv:
                 break
         assert found
 
-    @patch('cli.console.print')
+    @patch('src.common.console.console.print')
     @patch('cli.credentials.resolve_credentials')
     def test_check_cloud_env_missing(self, mock_resolve, mock_print):
         # Mock failed resolution
         mock_resolve.return_value = (None, None, None)
         
-        check_cloud_env()
+        mock_creds_module = MagicMock()
+        mock_creds_module.resolve_credentials = mock_resolve
+        # get_cloud_provider_info is not called if creds are missing (in original logic? let's check)
+        # Actually logic is: key_id, secret_key = ...; if key_id and secret_key: ...
+
+        check_cloud_env(mock_creds_module)
         
         found = False
         for call_args in mock_print.call_args_list:
@@ -551,11 +560,14 @@ class TestCheckCloudEnv:
                 break
         assert found
 
-    @patch('cli.console.print')
+    @patch('src.common.console.console.print')
     @patch('cli.credentials.resolve_credentials')
     def test_check_cloud_env_boto3_missing(self, mock_resolve, mock_print):
         mock_resolve.return_value = (None, None, None)
         
+        mock_creds_module = MagicMock()
+        mock_creds_module.resolve_credentials = mock_resolve
+
         original_import = __import__
         def mock_import(name, *args, **kwargs):
             if name == 'boto3': raise ImportError
@@ -563,7 +575,7 @@ class TestCheckCloudEnv:
             return original_import(name, *args, **kwargs)
 
         with patch('builtins.__import__', side_effect=mock_import):
-            check_cloud_env()
+            check_cloud_env(mock_creds_module)
 
         found = False
         for call_args in mock_print.call_args_list:

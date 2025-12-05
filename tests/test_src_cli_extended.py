@@ -22,18 +22,29 @@ class TestCliExtended:
             k, a, s = cli.credentials.resolve_credentials(DummyArgs())
             assert k == "k" and a == "a"
 
-    def test_check_cloud_env(self, capsys):
+    @patch('src.common.console.console.print')
+    def test_check_cloud_env(self, mock_print, capsys):
         with patch.dict(os.environ, {"PV_B2_KEY_ID": "k", "PV_B2_APP_KEY": "a"}, clear=True):
             # Mock resolve_credentials to return a successful tuple with "Environment" source
             with patch('src.cli.credentials.resolve_credentials', return_value=("k", "a", "Environment")) as mock_resolve_creds:
-                cli.check_cloud_env()
+
+                mock_creds_module = MagicMock()
+                mock_creds_module.resolve_credentials = mock_resolve_creds
+                mock_creds_module.get_cloud_provider_info.return_value = ("AWS", "bucket", "endpoint")
+
+                cli.check_cloud_env(mock_creds_module)
                 # Ensure resolve_credentials was called
                 mock_resolve_creds.assert_called_once()
 
-            captured = capsys.readouterr()
-            # Rich console output might contain formatting codes, so check substring
-            assert "Cloud Credentials Found" in captured.out
-            assert "Environment" in captured.out
+            # Since we mock print, we check call args instead of capsys
+            found = False
+            for call_args in mock_print.call_args_list:
+                panel = call_args[0][0]
+                text = str(panel.renderable)
+                if "Cloud Credentials Found" in text and "Environment" in text:
+                    found = True
+                    break
+            assert found
 
     # --- CLI Interactive Errors ---
     def test_cli_vault_no_path(self, capsys):

@@ -54,10 +54,26 @@ class TestSrcCliExtended:
             assert key == "pv_b2_key"
             assert secret == "pv_b2_app"
 
-    def test_check_cloud_env(self, capsys):
-        cli.check_cloud_env()
-        out, _ = capsys.readouterr()
-        assert "Cloud Environment Configuration" in out
+    @patch('src.common.console.console.print')
+    @patch('src.cli.credentials.resolve_credentials')
+    def test_check_cloud_env(self, mock_resolve, mock_print, capsys):
+        mock_resolve.return_value = ('key', 'secret', 'Source')
+
+        mock_creds_module = MagicMock()
+        mock_creds_module.resolve_credentials = mock_resolve
+        mock_creds_module.get_cloud_provider_info.return_value = ("AWS", "bucket", "endpoint")
+
+        cli.check_cloud_env(mock_creds_module)
+
+        # Check mock print calls instead of capsys
+        found = False
+        for call_args in mock_print.call_args_list:
+            panel = call_args[0][0]
+            text = str(panel.renderable)
+            if "Cloud Environment Configuration" in str(call_args) or "Cloud Environment Configuration" in str(panel.title):
+                found = True
+                break
+        assert found
 
     def test_print_main_help(self, capsys):
         with pytest.raises(SystemExit):
