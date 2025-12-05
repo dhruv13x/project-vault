@@ -146,7 +146,7 @@ pv checkout src/main.py
 | `pv check-env` | Check cloud credentials and dependencies. |
 | `pv notify-test` | Send a test notification. |
 | `pv config set-creds` | Save credentials to `pv.toml` (requires manual security override). |
-| `pv init` | Create a default `pv.toml` configuration file. |
+| `pv init` | Create a default `pv.toml` configuration file. Use `--smart` to auto-detect project type and generate `.pvignore`. |
 | `pv backup` | (Legacy) Create a file-based backup. |
 | `pv archive-restore` | (Legacy) Restore a file-based backup. |
 

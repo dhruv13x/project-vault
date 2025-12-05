@@ -1,0 +1,52 @@
+# Project Vault Ignore File
+# Add files and directories here that you want to exclude from snapshots.
+
+# VCS directories
+.git/
+.hg/
+.svn/
+
+# Common temporary files
+*.swp
+*.swo
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Ignore the ignore file itself
+.pvignore
