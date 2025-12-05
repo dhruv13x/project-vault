@@ -244,6 +244,7 @@ def _real_main():
     # --- Init Command ---
     init_parser = subparsers.add_parser("init", help="Initialize configuration", formatter_class=RichHelpFormatter)
     init_parser.add_argument("--pyproject", action="store_true", help="Print configuration for pyproject.toml instead of creating pv.toml")
+    init_parser.add_argument("--smart", action="store_true", help="Auto-detect project type and generate .pvignore")
 
     # --- Status Command ---
     status_parser = subparsers.add_parser("status", help="Show workspace and vault status", formatter_class=RichHelpFormatter)

@@ -61,7 +61,7 @@ Each level deepens the same core superpower:
 ### 2.2. Smart Configuration
 
 - [ ] **Auto-Configuration (`pv init --smart`):**
-    - [ ] Integrate `smart_init.py` logic into CLI.
+    - [x] Integrate `smart_init.py` logic into CLI.
     - [x] Logic to detect project type (Python, Node, Rust).
     - [x] Logic to generate optimized `.pvignore` (ignore `node_modules` but keep `.env`).
 - [ ] **Ignore/Include Rules:**

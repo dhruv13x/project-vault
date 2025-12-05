@@ -72,6 +72,19 @@ def handle_init_command(args):
     else:
         config.generate_init_file("pv.toml")
 
+        # Check for smart flag
+        if hasattr(args, 'smart') and args.smart:
+            try:
+                from common import smart_init
+                smart_init.generate_smart_ignore()
+            except ImportError:
+                # Fallback import
+                try:
+                    from src.common import smart_init
+                    smart_init.generate_smart_ignore()
+                except ImportError:
+                    console.print("[warning]Could not import smart_init module.[/warning]")
+
 def handle_status_command(args, defaults, credentials_module):
     if not args.vault_path:
         console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
