@@ -46,10 +46,20 @@ def restore_snapshot(manifest_path: str, destination_path: str, hooks: dict = No
     print(f"Snapshot Version: {version}")
 
     manifest_dir = os.path.dirname(os.path.abspath(manifest_path))
-    objects_dir = os.path.abspath(os.path.join(manifest_dir, "../objects"))
+    # Try multiple locations for objects dir
+    # 1. Sibling to snapshots dir (Standard V2: vault/objects vs vault/snapshots/project)
+    objects_dir_candidate_1 = os.path.abspath(os.path.join(manifest_dir, "../../objects"))
+    # 2. Sibling to manifest file (V1 or Flat: vault/snapshots/objects - unlikely but checked before)
+    objects_dir_candidate_2 = os.path.abspath(os.path.join(manifest_dir, "../objects"))
 
-    if not os.path.exists(objects_dir):
-        print(f"Error: Objects directory not found at {objects_dir}")
+    if os.path.exists(objects_dir_candidate_1):
+        objects_dir = objects_dir_candidate_1
+    elif os.path.exists(objects_dir_candidate_2):
+        objects_dir = objects_dir_candidate_2
+    else:
+        # Fallback to standard if neither exists (will fail later but informative)
+        objects_dir = objects_dir_candidate_1
+        print(f"Error: Objects directory not found at {objects_dir} or {objects_dir_candidate_2}")
         sys.exit(1)
 
     print(f"Restoring to: {destination_path}")
@@ -66,43 +76,84 @@ def restore_snapshot(manifest_path: str, destination_path: str, hooks: dict = No
             skipped_count += 1
             continue
 
-        # Handle Version 1 vs Version 2
+        file_dest = os.path.join(destination_path, rel_path)
+
+        # Determine Entry Type
+        entry_type = "file"
+        file_hash = None
+        metadata = None
+        target = None
+
         if isinstance(entry, str):
             # V1: entry is just the hash string
             file_hash = entry
-            metadata = None
         else:
             # V2: entry is a dict
+            entry_type = entry.get("type", "file")
             file_hash = entry.get("hash")
+            target = entry.get("target")
             metadata = entry
 
-        object_source = os.path.join(objects_dir, file_hash)
-        file_dest = os.path.join(destination_path, rel_path)
-        
-        if not os.path.exists(object_source):
-             print(f"ERROR: Missing object {file_hash} for file {rel_path}")
-             skipped_count += 1
-             continue
-
         try:
-            # Use cas helper to handle compression/decompression
-            cas.restore_object_to_file(object_source, file_dest)
+            # Remove existing file/link if present to avoid errors
+            if os.path.lexists(file_dest):
+                if os.path.isdir(file_dest) and not os.path.islink(file_dest):
+                    # If it's a directory, we might need to be careful?
+                    # But if we are overwriting a file with a file, we should probably remove it.
+                    # For now, let's assume we can remove it.
+                    # Actually, if we are restoring a file that conflicts with a dir, we should probably fail or warn.
+                    # But standard restore overwrites.
+                    shutil.rmtree(file_dest)
+                else:
+                    os.remove(file_dest)
             
-            # Apply Metadata (V2)
-            if metadata:
-                try:
-                    # Restore permissions
-                    if "mode" in metadata:
-                        os.chmod(file_dest, metadata["mode"])
-                    
-                    # Restore timestamps (atime, mtime)
-                    # We use mtime for both since atime isn't stored
-                    if "mtime" in metadata:
-                        mtime = metadata["mtime"]
-                        os.utime(file_dest, (mtime, mtime))
+            # Ensure parent dir exists
+            os.makedirs(os.path.dirname(file_dest), exist_ok=True)
+
+            if entry_type == "symlink" and target:
+                os.symlink(target, file_dest)
+                # Symlink restored
+                # Try to restore permissions if possible (lchmod is rare)
+                if metadata:
+                    # On Linux, lchmod is not available. chmod follows symlinks.
+                    # We usually don't restore permissions for symlinks themselves as they depend on umask/target.
+                    # However, lutime might be available.
+                     if "mtime" in metadata and hasattr(os, "lutime"):
+                        try:
+                            mtime = metadata["mtime"]
+                            os.lutime(file_dest, (mtime, mtime))
+                        except Exception:
+                            pass
+
+            elif entry_type == "file" and file_hash:
+                object_source = os.path.join(objects_dir, file_hash)
+
+                if not os.path.exists(object_source):
+                     print(f"ERROR: Missing object {file_hash} for file {rel_path}")
+                     skipped_count += 1
+                     continue
+
+                # Use cas helper to handle compression/decompression
+                cas.restore_object_to_file(object_source, file_dest)
+
+                # Apply Metadata (V2)
+                if metadata:
+                    try:
+                        # Restore permissions
+                        if "mode" in metadata:
+                            os.chmod(file_dest, metadata["mode"])
                         
-                except Exception as e:
-                    print(f"Warning: Failed to apply metadata for {rel_path}: {e}")
+                        # Restore timestamps (atime, mtime)
+                        if "mtime" in metadata:
+                            mtime = metadata["mtime"]
+                            os.utime(file_dest, (mtime, mtime))
+
+                    except Exception as e:
+                        print(f"Warning: Failed to apply metadata for {rel_path}: {e}")
+            else:
+                 print(f"Unknown entry type or missing data for {rel_path}")
+                 skipped_count += 1
+                 continue
 
             print(f"Restoring: {rel_path}")
             restored_count += 1
