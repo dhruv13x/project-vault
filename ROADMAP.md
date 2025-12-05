@@ -65,7 +65,7 @@ Each level deepens the same core superpower:
     - [x] Logic to detect project type (Python, Node, Rust).
     - [x] Logic to generate optimized `.pvignore` (ignore `node_modules` but keep `.env`).
 - [ ] **Ignore/Include Rules:**
-    - [ ] Full `.pvignore` support (distinct from `.gitignore` for snapshot payloads).
+    - [x] Full `.pvignore` support (distinct from `.gitignore` for snapshot payloads).
 
 ### 2.3. Verify-Clone (Prove the Magic)
 

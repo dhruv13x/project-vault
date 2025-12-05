@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, List
 
 from .cleanup import cleanup_state
-from .scanner import matches_excludes, walk_stats
+from .scanner import matches_excludes, walk_stats, get_project_ignore_spec
 from .utils import ensure_dir, sha256_of_file, make_unique_path, human_size
 
 
@@ -163,7 +163,10 @@ def copy_tree_atomic(
     ensure_dir(tmp_dir)
     cleanup_state.register_tmp_dir(tmp_dir)
 
-    file_count, total_size = walk_stats(src, follow_symlinks=not preserve_symlinks, excludes=excludes)
+    # Load ignore spec once for the whole operation
+    ignore_spec = get_project_ignore_spec(src)
+
+    file_count, total_size = walk_stats(src, follow_symlinks=not preserve_symlinks, excludes=excludes, ignore_spec=ignore_spec)
     if log_fp:
         try:
             log_fp.write(f"Copying {file_count} files, approx {human_size(total_size)}\n")
@@ -172,13 +175,28 @@ def copy_tree_atomic(
     copied = 0
 
     for dirpath, dirnames, filenames in os.walk(src, followlinks=not preserve_symlinks):
-        dirnames[:] = [d for d in dirnames if not matches_excludes(Path(dirpath) / d, excludes, root=src)]
+        # We must filter dirnames AND check ignore_spec
+        # Use helper from scanner which now handles spec
+
+        d_root = Path(dirpath)
+
+        # Filter directories
+        # We must iterate backwards to delete
+        i = 0
+        while i < len(dirnames):
+             d = dirnames[i]
+             full_d = d_root / d
+             if matches_excludes(full_d, excludes, root=src, ignore_spec=ignore_spec):
+                 del dirnames[i]
+             else:
+                 i += 1
+
         rel_dir = os.path.relpath(dirpath, str(src))
         dest_dir = tmp_dir.joinpath(rel_dir) if rel_dir != "." else tmp_dir
         ensure_dir(dest_dir)
         for fn in filenames:
             src_fp = Path(dirpath) / fn
-            if matches_excludes(src_fp, excludes, root=src):
+            if matches_excludes(src_fp, excludes, root=src, ignore_spec=ignore_spec):
                 if log_fp:
                     try:
                         log_fp.write(f"Excluded {src_fp}\n")
@@ -312,11 +330,26 @@ def rsync_incremental(
     Use rsync to create an incremental backup (hardlinks to link_dest). Copies into tmp dir and then moves.
     dry_run: if True, rsync will be invoked with --dry-run and the tmpdir will be removed after.
     """
+    # rsync excludes need to be passed as arguments.
+    # We should add .pvignore content to args if possible?
+    # Rsync supports --exclude-from. We can pass the path to .pvignore if it exists!
+
     args = ["rsync", "-aH", "--delete"]
     # default exclude .git folder inside repo (conservative)
     args += ["--exclude", "*/.git/*"]
+
     for ex in (excludes or []):
         args += ["--exclude", ex]
+
+    # Add .pvignore / .vaultignore
+    pvignore = src / ".pvignore"
+    if pvignore.exists():
+        args += ["--exclude-from", str(pvignore)]
+
+    vaultignore = src / ".vaultignore"
+    if vaultignore.exists():
+         args += ["--exclude-from", str(vaultignore)]
+
     if link_dest:
         args += ["--link-dest", str(link_dest)]
     if dry_run:
