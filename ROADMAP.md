@@ -63,7 +63,7 @@ Each level deepens the same core superpower:
 
 - [x] **Store Metadata:** Capture file permissions (chmod) and timestamps (mtime) in manifest (V2 Format).
 - [x] **Restore Metadata:** Apply permissions and timestamps correctly on restore/checkout.
-- [ ] **Symlink Support:** Store symlinks as first-class objects (not just following them).
+- [x] **Symlink Support:** Store symlinks as first-class objects (not just following them).
 
 ### 2.2. Smart Configuration
 

@@ -98,21 +98,34 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
 
             rel_path = os.path.relpath(full_path, source_path)
             try:
-                # Capture Metadata
-                stat = os.stat(full_path)
-                
-                # Store Object
-                file_hash = cas.store_object(full_path, objects_dir)
-                
-                # Record Entry (Version 2 Format)
-                snapshot_data["files"][rel_path] = {
-                    "hash": file_hash,
-                    "mode": stat.st_mode,
-                    "mtime": stat.st_mtime,
-                    "size": stat.st_size
-                }
-                
-                print(f"Hashed: {rel_path} -> {file_hash}")
+                # Check for Symlink
+                if os.path.islink(full_path):
+                    target_path = os.readlink(full_path)
+                    lstat = os.lstat(full_path)
+
+                    snapshot_data["files"][rel_path] = {
+                        "type": "symlink",
+                        "target": target_path,
+                        "mode": lstat.st_mode,
+                        "mtime": lstat.st_mtime
+                    }
+                    print(f"Symlink: {rel_path} -> {target_path}")
+                else:
+                    # Capture Metadata
+                    stat = os.stat(full_path)
+
+                    # Store Object
+                    file_hash = cas.store_object(full_path, objects_dir)
+
+                    # Record Entry (Version 2 Format)
+                    snapshot_data["files"][rel_path] = {
+                        "hash": file_hash,
+                        "mode": stat.st_mode,
+                        "mtime": stat.st_mtime,
+                        "size": stat.st_size
+                    }
+
+                    print(f"Hashed: {rel_path} -> {file_hash}")
             except Exception as e:
                 print(f"Error processing {rel_path}: {e}")
                 raise

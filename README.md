@@ -85,6 +85,7 @@ For servers, CI/CD, or minimal environments, you can install the components inde
 *   **Environment Checker**: The `pv check-env` command verifies your cloud credentials and dependencies.
 *   **Notification Integration**: Test your notification setup with `pv notify-test`.
 *   **Doppler Secret Integration**: Automatically inject secrets from Doppler for secure cloud access.
+*   **Symlink Support**: Fully supports backing up and restoring symbolic links as first-class objects.
 
 ---
 
