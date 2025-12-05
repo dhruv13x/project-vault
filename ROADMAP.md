@@ -1,4 +1,3 @@
-
 # Project Vault Roadmap
 
 > **Core Vision:**  
@@ -26,13 +25,13 @@ Each level deepens the same core superpower:
 ### Core Engine & CLI
 
 - [x] **Core CAS Engine:** Content-Addressable Storage for deduplication.
-- [x] `backup` – Create backups (full, incremental, archive)
-- [x] `archive-restore` – Safely restore archive backups
-- [x] `vault` – Content-addressable backup into vault (objects + manifests)
-- [x] `vault-restore` – Restore project from a vault manifest
-- [x] `init` – Initialize configuration / `pv.toml` / defaults
-- [x] `gc` – Garbage collect orphaned objects
-- [x] `check-integrity` – Verify local vault health (missing/corrupt objects)
+- [x] `backup` – Create backups (full, incremental, archive).
+- [x] `archive-restore` – Safely restore archive backups.
+- [x] `vault` – Content-addressable backup into vault (objects + manifests).
+- [x] `vault-restore` – Restore project from a vault manifest.
+- [x] `init` – Initialize configuration / `pv.toml` / defaults.
+- [x] `gc` – Garbage collect orphaned objects.
+- [x] `check-integrity` – Verify local vault health (missing/corrupt objects).
 
 ### Cloud & Sync
 
@@ -46,12 +45,6 @@ Each level deepens the same core superpower:
 - [x] `diff` – Compare local file vs latest snapshot (`pv diff <file>`).
 - [x] `checkout` – Restore single file from latest snapshot (`pv checkout <file>`).
 - [x] `list` – List available snapshots locally or in cloud.
-
-### Project Teleportation (Killer Feature)
-
-- [x] **Perfect clone of current project state**:
-  - Captures **everything** in the project (code, env files, caches, databases, assets).
-  - "Zero-Trust" restoration (no absolute paths/traversal).
 
 ---
 
@@ -68,10 +61,11 @@ Each level deepens the same core superpower:
 ### 2.2. Smart Configuration
 
 - [ ] **Auto-Configuration (`pv init --smart`):**
-    - Auto-detect project type (Python, Node, Rust).
-    - Generate optimized `.vaultignore` (e.g., ignore `node_modules` but keep `.env`).
+    - [ ] Integrate `smart_init.py` logic into CLI.
+    - [x] Logic to detect project type (Python, Node, Rust).
+    - [x] Logic to generate optimized `.pvignore` (ignore `node_modules` but keep `.env`).
 - [ ] **Ignore/Include Rules:**
-    - `.pvignore` support (distinct from `.gitignore` for snapshot payloads).
+    - [ ] Full `.pvignore` support (distinct from `.gitignore` for snapshot payloads).
 
 ### 2.3. Verify-Clone (Prove the Magic)
 
@@ -82,7 +76,7 @@ Each level deepens the same core superpower:
 ### 2.4. First-class "Capsule" Concept
 
 - [ ] Introduce `pv capsule create` / `restore` aliases.
-- [ ] Official on-disk capsule format (`*.pvc`) for sharing.
+- [ ] Official on-disk capsule format (`*.pvc`) for sharing via USB/Email.
 - [ ] Capsule Metadata: Embed `source_os`, `hostname`, `created_at` in snapshots.
 
 ---
@@ -93,23 +87,21 @@ Each level deepens the same core superpower:
 
 ### 3.1. Performance Optimization
 
-- [ ] **Parallel Cloud Sync:** Multi-threaded uploads/downloads.
+- [ ] **Parallel Cloud Sync:** Multi-threaded uploads/downloads (replace sequential loop in `sync_engine.py`).
 - [ ] **Fast Hashing:** Use xxHash for local disk operations (faster than SHA256).
-- [ ] **Compression:** Zstandard (zstd) compression for objects.
+- [x] **Compression:** Zstandard (zstd) compression for objects.
 
-### 3.2. Golden Workflows
-
-- [ ] Document recipes: "New Machine Migration", "Bug Capsules", "Cloud Resurrection".
-- [ ] Configurable defaults in `pv.toml`.
-
-### 3.3. Secret Manager Integration
+### 3.2. Integrations
 
 - [x] **Doppler Support:**
     - Automatically fetch cloud credentials (AWS/B2 keys) and other configurations from a detected Doppler environment.
 - [ ] **Infisical Support:**
     - Add support for Infisical as a secret provider.
-- [ ] **Plugin Architecture for Secret Managers:**
-    - Allow users to create their own secret manager plugins.
+- [ ] **Database Connectors:**
+    - Native hooks for `pg_dump`, `mysqldump`, `sqlite3` backup.
+    - `pv db dump` / `pv db restore`.
+- [ ] **Git Handshake:**
+    - `pv commit`: Create a Git commit and a PV snapshot simultaneously, linking the two.
 
 ---
 
@@ -120,7 +112,7 @@ Each level deepens the same core superpower:
 ### 4.1. Snapshot Timeline
 
 - [ ] `pv history`: Chronological list with filtering (`--host`, `--since`).
-- [x] **Interactive TUI:** Browse snapshots and view diffs visually (`pv interactive`).
+- [x] **Interactive TUI:** Browse snapshots and view diffs visually (`pv browse`).
 
 ### 4.2. Snapshot Diffs & Restore
 
@@ -128,23 +120,15 @@ Each level deepens the same core superpower:
 - [ ] `pv restore --snapshot <id>`: Full project restore to specific state.
 - [ ] `pv checkout <file> --snapshot <id>`: Surgical restore from history.
 
-### 4.3. Labels & Bookmarks
-
-- [ ] `pv tag add <name>`: Label important states (e.g., "stable-v1").
-
-### 4.4. Client-side Encryption
+### 4.3. Security & Compliance
 
 - [ ] **Zero-Knowledge Encryption:** AES-256-GCM encryption of objects *before* they hit the disk/cloud.
-- [ ] Key management (Passphrase or Keyfile).
+- [ ] **Redacted Capsules:** `pv capsule create --redacted` to automatically exclude secrets (`.env`) based on policy.
+- [ ] **Data Provenance:** Cryptographically sign snapshots to prove origin and integrity.
 
-### 4.5. Redacted Capsules
+### 4.4. Container Integration
 
-- [ ] `pv capsule create --redacted`: Automatically exclude secrets (`.env`) based on policy.
-
-### 4.6. Enhanced Integrity
-
-- [ ] Hash chains or manifest signatures.
-- [ ] `pv check-integrity --deep`: Verify entire history.
+- [ ] **Container Snapshots:** `pv vault --container <id>` to snapshot a running container's filesystem.
 
 ---
 
@@ -172,17 +156,7 @@ Each level deepens the same core superpower:
 ### 5.4. Research & AI Integration
 
 - [ ] **Large File Support (LFS):** Chunking for multi-GB model weights.
-- [ ] **Data Provenance:** Track which snapshot generated which output file.
 - [ ] **AI-powered `.vaultignore`:**
     - Train a model to predict which files should be ignored based on the project type.
 - [ ] **AI-powered `diff`:**
-    - Use AI to summarize the changes between two snapshots.
-
----
-
-## Guiding Principles
-
-1. **Never lie about state.** If something can’t be restored, say so.
-2. **Project-centric, not file-centric.** Think in terms of the "living project."
-3. **Boringly reliable.** Teleportation must be rock solid.
-4. **Embrace “dirty reality”.** Handle the mess that Git ignores.
+    - Use AI to summarize the changes between two snapshots in natural language.
