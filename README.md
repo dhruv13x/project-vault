@@ -6,7 +6,7 @@
 
 <!-- Package Info -->
 [![PyPI version](https://img.shields.io/pypi/v/project-vault.svg)](https://pypi.org/project/project-vault/)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 ![Wheel](https://img.shields.io/pypi/wheel/project-vault.svg)
 [![Release](https://img.shields.io/badge/release-PyPI-blue)](https://pypi.org/project/project-vault/)
 
@@ -26,9 +26,6 @@
 
 <!-- License -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-<!-- Docs -->
-[![Docs](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://your-docs-link)
 
 </div>
 
@@ -135,7 +132,7 @@ pv checkout src/main.py
 
 | Command | Description |
 | :--- | :--- |
-| `pv browse` | **(New)** Interactive TUI to browse, view, and restore from snapshots. |
+| `pv browse` | **(God Level)** Interactive TUI to browse, view, and restore from snapshots. |
 | `pv vault` | Create a content-addressable snapshot of the current directory. |
 | `pv vault-restore` | Full project restoration from a manifest. |
 | `pv status` | Show modified files and cloud sync status. |
@@ -148,6 +145,8 @@ pv checkout src/main.py
 | `pv check-integrity`| Verify the health of the local vault (detect corruption). |
 | `pv check-env` | Check cloud credentials and dependencies. |
 | `pv notify-test` | Send a test notification. |
+| `pv config set-creds` | Save credentials to `pv.toml` (requires manual security override). |
+| `pv init` | Create a default `pv.toml` configuration file. |
 | `pv backup` | (Legacy) Create a file-based backup. |
 | `pv archive-restore` | (Legacy) Restore a file-based backup. |
 
@@ -199,7 +198,7 @@ Key options:
 4.  **Standard Env Vars**: `AWS_ACCESS_KEY_ID`, `B2_KEY_ID`, etc.
 5.  **Config File**: `pv.toml` or `pyproject.toml` values are used last.
 
-> **Blockquote: Security Note**
+> **Security Note**
 > For automated environments, using Doppler or `PV_` prefixed variables is highly recommended to avoid leaking general-purpose cloud credentials.
 
 ### Lifecycle Hooks
@@ -213,9 +212,24 @@ post-restore = "psql my_db < backup.sql && rm backup.sql"
 
 ---
 
-## 🧩 Architecture
+## 🏗️ Architecture
 
 Project Vault is a **monorepo** containing three distinct tools:
+
+```text
+.
+├── src/                  # The 'pv' Orchestrator & CLI
+│   ├── cli.py            # Main entry point
+│   ├── tui.py            # Textual-based Time Machine
+│   └── common/           # Shared utilities (config, credentials, hooks)
+├── projectclone/         # The Backup Engine
+│   └── src/
+│       ├── cas_engine.py # Content-Addressable Storage logic
+│       └── sync_engine.py# Cloud synchronization (S3/B2)
+└── projectrestore/       # The Restore Engine
+    └── src/
+        └── restore_engine.py # Safety-critical restoration logic
+```
 
 1.  **`project-vault` (pv):** The orchestrator. Handles configuration, cloud sync, and user interaction.
 2.  **`projectclone`:** The backup engine. Handles hashing, deduplication, and manifest generation.
@@ -229,6 +243,8 @@ See [ROADMAP.md](ROADMAP.md) for the vision of **Project Teleportation**, **Smar
 
 ---
 
-## 📄 License
+## 🤝 Contributing & License
 
-MIT License.
+Contributions are welcome! Please check out the issues and PRs.
+
+**License:** MIT License.
