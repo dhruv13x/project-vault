@@ -42,12 +42,18 @@ class TestCliDispatch:
 
         assert cli_dispatch.resolve_path(None) is None
 
-    def test_handle_vault_command_missing_path(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_vault_command(args, {})
-        mock_console.print.assert_called()
-        mock_exit.assert_called_with(1)
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.cas_engine.backup_to_vault")
+    def test_handle_vault_command_missing_path(self, mock_backup, mock_get_default, mock_console, mock_exit):
+        args = MagicMock(vault_path=None, source="/source", name=None)
+        mock_get_default.return_value = "/default/vault"
+        mock_backup.return_value = "manifest"
+        
+        cli_dispatch.handle_vault_command(args, {})
+        
+        mock_get_default.assert_called_once()
+        mock_backup.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.cas_engine.backup_to_vault")
     def test_handle_vault_command_success(self, mock_backup, mock_console):
@@ -192,11 +198,17 @@ class TestCliDispatch:
         mock_config.generate_init_file.assert_called_with("pv.toml")
         mock_smart.generate_smart_ignore.assert_called_once()
 
-    def test_handle_status_command_missing_path(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_status_command(args, {}, None)
-        mock_exit.assert_called_with(1)
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.status_engine.show_status")
+    def test_handle_status_command_missing_path(self, mock_status, mock_get_default, mock_console, mock_exit):
+        args = MagicMock(vault_path=None, source="/source", bucket=None)
+        mock_get_default.return_value = "/default/vault"
+        
+        cli_dispatch.handle_status_command(args, {}, None)
+        
+        mock_get_default.assert_called_once()
+        mock_status.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.status_engine.show_status")
     def test_handle_status_command_success(self, mock_status, mock_console):
@@ -214,11 +226,17 @@ class TestCliDispatch:
 
         mock_status.assert_called_once()
 
-    def test_handle_diff_command_missing_path(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_diff_command(args, {})
-        mock_exit.assert_called_with(1)
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.diff_engine.show_diff")
+    def test_handle_diff_command_missing_path(self, mock_diff, mock_get_default, mock_console, mock_exit):
+        args = MagicMock(vault_path=None, file="file")
+        mock_get_default.return_value = "/default/vault"
+        
+        cli_dispatch.handle_diff_command(args, {})
+        
+        mock_get_default.assert_called_once()
+        mock_diff.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.diff_engine.show_diff")
     def test_handle_diff_command_success(self, mock_diff, mock_console):
@@ -226,11 +244,17 @@ class TestCliDispatch:
         cli_dispatch.handle_diff_command(args, {})
         mock_diff.assert_called_once()
 
-    def test_handle_checkout_command_missing_path(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_checkout_command(args, {})
-        mock_exit.assert_called_with(1)
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.checkout_engine.checkout_file")
+    def test_handle_checkout_command_missing_path(self, mock_checkout, mock_get_default, mock_console, mock_exit):
+        args = MagicMock(vault_path=None, file="file", force=False)
+        mock_get_default.return_value = "/default/vault"
+        
+        cli_dispatch.handle_checkout_command(args, {})
+        
+        mock_get_default.assert_called_once()
+        mock_checkout.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.checkout_engine.checkout_file")
     def test_handle_checkout_command_success(self, mock_checkout, mock_console):
@@ -238,11 +262,18 @@ class TestCliDispatch:
         cli_dispatch.handle_checkout_command(args, {})
         mock_checkout.assert_called_once()
 
-    def test_handle_browse_command_missing_path(self, mock_console, mock_exit):
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("src.tui.ProjectVaultApp")
+    def test_handle_browse_command_missing_path(self, mock_app, mock_get_default, mock_console, mock_exit):
         args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_browse_command(args, {})
-        mock_exit.assert_called_with(1)
+        args.name = None
+        mock_get_default.return_value = "/default/vault"
+        
+        cli_dispatch.handle_browse_command(args, {})
+        
+        mock_get_default.assert_called_once()
+        mock_app.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("src.tui.ProjectVaultApp")
     def test_handle_browse_command_success(self, mock_app, mock_console):
@@ -279,11 +310,17 @@ class TestCliDispatch:
 
         mock_list.assert_called_once()
 
-    def test_handle_list_command_local_missing_path(self, mock_console, mock_exit):
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.list_engine.list_local_snapshots")
+    def test_handle_list_command_local_missing_path(self, mock_list, mock_get_default, mock_console, mock_exit):
         args = MagicMock(cloud=False, vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_list_command(args, {}, None)
-        mock_exit.assert_called_with(1)
+        mock_get_default.return_value = "/default/vault"
+        
+        cli_dispatch.handle_list_command(args, {}, None)
+        
+        mock_get_default.assert_called_once()
+        mock_list.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.list_engine.list_local_snapshots")
     def test_handle_list_command_local_success(self, mock_list, mock_console):
@@ -291,12 +328,25 @@ class TestCliDispatch:
         cli_dispatch.handle_list_command(args, {}, None)
         mock_list.assert_called_once()
 
-    def test_handle_push_command_missing_args(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
+    @patch("src.common.paths.get_default_vault_path")
+    def test_handle_push_command_missing_args(self, mock_get_default, mock_console, mock_exit):
+        # Test missing vault path (gets defaulted) AND missing bucket (errors out)
+        args = MagicMock(vault_path=None, bucket=None)
+        mock_get_default.return_value = "/default/vault"
+        
         with pytest.raises(ExitException):
             cli_dispatch.handle_push_command(args, {}, None)
+        
+        # Ensure default path was fetched
+        mock_get_default.assert_called()
+        # Ensure bucket check failed
+        mock_console.print.assert_called_with("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
         mock_exit.assert_called_with(1)
 
+        # Reset for next case
+        mock_exit.reset_mock()
+        
+        # Provided path but missing bucket
         args = MagicMock(vault_path="vault", bucket=None)
         with pytest.raises(ExitException):
             cli_dispatch.handle_push_command(args, {}, None)
@@ -335,10 +385,15 @@ class TestCliDispatch:
 
         notifier.send_message.assert_called()
 
-    def test_handle_pull_command_missing_args(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
+    @patch("src.common.paths.get_default_vault_path")
+    def test_handle_pull_command_missing_args(self, mock_get_default, mock_console, mock_exit):
+        args = MagicMock(vault_path=None, bucket=None)
+        mock_get_default.return_value = "/default/vault"
+        
         with pytest.raises(ExitException):
             cli_dispatch.handle_pull_command(args, {}, None)
+            
+        mock_get_default.assert_called()
         mock_exit.assert_called_with(1)
 
         args = MagicMock(vault_path="vault", bucket=None)
@@ -364,11 +419,18 @@ class TestCliDispatch:
 
         mock_sync.assert_called_once()
 
-    def test_handle_check_integrity_command_missing_path(self, mock_console, mock_exit):
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.integrity_engine.verify_vault")
+    def test_handle_check_integrity_command_missing_path(self, mock_verify, mock_get_default, mock_console, mock_exit):
         args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_check_integrity_command(args, {})
-        mock_exit.assert_called_with(1)
+        mock_get_default.return_value = "/default/vault"
+        mock_verify.return_value = True
+        
+        cli_dispatch.handle_check_integrity_command(args, {})
+        
+        mock_get_default.assert_called_once()
+        mock_verify.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.integrity_engine.verify_vault")
     def test_handle_check_integrity_command_success(self, mock_verify, mock_console, mock_exit):
@@ -386,11 +448,17 @@ class TestCliDispatch:
             cli_dispatch.handle_check_integrity_command(args, {})
         mock_exit.assert_called_with(1)
 
-    def test_handle_gc_command_missing_path(self, mock_console, mock_exit):
-        args = MagicMock(vault_path=None)
-        with pytest.raises(ExitException):
-            cli_dispatch.handle_gc_command(args, {})
-        mock_exit.assert_called_with(1)
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.gc_engine.run_garbage_collection")
+    def test_handle_gc_command_missing_path(self, mock_gc, mock_get_default, mock_console, mock_exit):
+        args = MagicMock(vault_path=None, dry_run=True)
+        mock_get_default.return_value = "/default/vault"
+        
+        cli_dispatch.handle_gc_command(args, {})
+        
+        mock_get_default.assert_called_once()
+        mock_gc.assert_called_once()
+        mock_exit.assert_not_called()
 
     @patch("projectclone.gc_engine.run_garbage_collection")
     def test_handle_gc_command_success(self, mock_gc, mock_console):

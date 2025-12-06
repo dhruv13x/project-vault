@@ -93,13 +93,18 @@ class TestSrcCliExtended:
         mock_backup.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    def test_vault_command_no_path(self, mock_config, capsys):
+    @patch("projectclone.cas_engine.backup_to_vault")
+    def test_vault_command_no_path(self, mock_backup, mock_config, capsys):
         mock_config.return_value = {}
         test_args = ["pv", "vault", "."]
         with patch.object(sys, 'argv', test_args):
-             with pytest.raises(SystemExit) as exc:
-                 cli.main()
-             assert exc.value.code == 1
+             # Should proceed with smart default path
+             cli.main()
+             
+        mock_backup.assert_called()
+        args, kwargs = mock_backup.call_args
+        # Check if vault path argument (2nd arg) contains .project_vault
+        assert ".project_vault" in args[1]
 
     @patch("src.cli.config.load_project_config")
     @patch("projectrestore.restore_engine.restore_snapshot")

@@ -209,28 +209,26 @@ class TestMainCli:
 
     def test_vault_command_missing_vault_path_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault', 'my_source'] 
-        mock_sys_exit.side_effect = SystemExit(1) # CRITICAL: Ensure it stops execution
-        try:
-            main()
-        except SystemExit:
-            pass
-        output = capture_stdout()
-        assert "Error: vault_path must be specified in CLI or pv.toml" in output
-        mock_sys_exit.assert_called_once_with(1)
-        mock_cas_engine.backup_to_vault.assert_not_called()
+        
+        # It should NOT exit anymore, but proceed with default path
+        main()
+        
+        # Verify backup was called with *some* default path
+        mock_cas_engine.backup_to_vault.assert_called_once()
+        args, kwargs = mock_cas_engine.backup_to_vault.call_args
+        assert args[0] == os.path.abspath('my_source')
+        # The second arg (vault_path) should be populated with default
+        assert ".project_vault" in args[1] 
+        mock_sys_exit.assert_not_called()
 
     def test_vault_command_missing_vault_path_from_config_exits(self, mock_sys_exit, capture_stdout, mock_cas_engine, mock_full_env):
         with patch('cli.config.load_project_config', return_value={'vault_path': None}) as mock_load:
             sys.argv = ['pv', 'vault', 'my_source']
-            mock_sys_exit.side_effect = SystemExit(1) # CRITICAL: Ensure it stops execution
-            try:
-                 main()
-            except SystemExit:
-                 pass
-            output = capture_stdout()
-            assert "Error: vault_path must be specified in CLI or pv.toml" in output
-            mock_sys_exit.assert_called_once_with(1)
-            mock_cas_engine.backup_to_vault.assert_not_called()
+            
+            main()
+            
+            mock_cas_engine.backup_to_vault.assert_called_once()
+            mock_sys_exit.assert_not_called()
 
     def test_vault_restore_command_calls_restore_engine(self, mock_sys_exit, mock_restore_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault-restore', 'manifest.json', 'restore_dest']
@@ -452,32 +450,43 @@ class TestMainCli:
         main()
         mock_list_engine.list_local_snapshots.assert_called_once_with(os.path.abspath('/vault'))
 
-    def test_list_local_missing_vault(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
+    def test_list_local_missing_vault(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env, mock_list_engine):
         sys.argv = ['pv', 'list']
         mock_config_load.return_value = {'vault_path': None}
-        mock_sys_exit.side_effect = SystemExit(1)
-        try:
-            main()
-        except SystemExit:
-            pass
-        output = capture_stdout()
-        assert "Error: vault_path must be specified" in output
+        
+        main()
+        
+        mock_list_engine.list_local_snapshots.assert_called_once()
+        mock_sys_exit.assert_not_called()
 
     def test_gc_command(self, mock_sys_exit, mock_gc_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'gc', '/vault', '--dry-run']
         main()
         mock_gc_engine.run_garbage_collection.assert_called_once_with(os.path.abspath('/vault'), True)
 
-    def test_push_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
-        sys.argv = ['pv', 'push']
+    def test_push_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env, mock_sync_engine):
+        sys.argv = ['pv', 'push', '--bucket', 'b']
         mock_config_load.return_value = {'vault_path': None}
-        mock_sys_exit.side_effect = SystemExit(1)
-        try:
-            main()
-        except SystemExit:
-            pass
-        output = capture_stdout()
-        assert "Error: vault_path must be specified" in output
+        
+        # Mock resolve_credentials to allow push to proceed
+        def mock_resolve(args, allow_fail=False): return "k", "s", "src"
+        mock_creds = MagicMock()
+        mock_creds.resolve_credentials = mock_resolve
+        
+        # Need to patch credentials module import inside cli.py main() -> handle_push_command
+        # But we passed credentials object to handle_push_command in main.
+        # The main function imports credentials from common.
+        # We can patch 'cli.credentials' since we imported it in the test file?
+        # Or patch sys.modules?
+        
+        # The test fixture mock_full_env patches 'cli.credentials.get_full_env'.
+        # We need to patch 'cli.credentials.resolve_credentials' too.
+        
+        with patch('cli.credentials.resolve_credentials', side_effect=mock_resolve):
+             main()
+             
+        mock_sync_engine.sync_to_cloud.assert_called_once()
+        mock_sys_exit.assert_not_called()
 
     def test_push_missing_creds(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']
@@ -494,27 +503,25 @@ class TestMainCli:
             assert "Error" in output
             assert "Cloud credentials missing" in output
 
-    def test_pull_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
-        sys.argv = ['pv', 'pull']
+    def test_pull_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env, mock_sync_engine):
+        sys.argv = ['pv', 'pull', '--bucket', 'b']
         mock_config_load.return_value = {'vault_path': None}
-        mock_sys_exit.side_effect = SystemExit(1)
-        try:
+        
+        def mock_resolve(args, allow_fail=False): return "k", "s", "src"
+        with patch('cli.credentials.resolve_credentials', side_effect=mock_resolve):
             main()
-        except SystemExit:
-            pass
-        output = capture_stdout()
-        assert "Error: vault_path must be specified" in output
+            
+        mock_sync_engine.sync_from_cloud.assert_called_once()
+        mock_sys_exit.assert_not_called()
 
-    def test_gc_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
+    def test_gc_missing_vault_path(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env, mock_gc_engine):
         sys.argv = ['pv', 'gc']
         mock_config_load.return_value = {'vault_path': None}
-        mock_sys_exit.side_effect = SystemExit(1)
-        try:
-            main()
-        except SystemExit:
-            pass
-        output = capture_stdout()
-        assert "Error: vault_path must be specified" in output
+        
+        main()
+        
+        mock_gc_engine.run_garbage_collection.assert_called_once()
+        mock_sys_exit.assert_not_called()
 
 
 class TestCheckCloudEnv:

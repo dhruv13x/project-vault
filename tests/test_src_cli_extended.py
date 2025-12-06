@@ -49,14 +49,13 @@ class TestCliExtended:
     # --- CLI Interactive Errors ---
     def test_cli_vault_no_path(self, capsys):
         with patch("src.common.config.load_project_config", return_value={}):
-            with patch.object(sys, 'argv', ['pv', 'vault']):
-                with pytest.raises(SystemExit) as excinfo:
+            with patch("projectclone.cas_engine.backup_to_vault") as mock_vault:
+                with patch.object(sys, 'argv', ['pv', 'vault', '.']):
+                    # Should NOT exit, but call backup with default path
                     cli.main()
-                assert excinfo.value.code == 1
-
-        captured = capsys.readouterr()
-        # Rich output
-        assert "vault_path must be specified" in captured.out
+                    mock_vault.assert_called()
+                    args, kwargs = mock_vault.call_args
+                    assert ".project_vault" in args[1]
 
     def test_cli_invalid_command(self, capsys):
         with patch.object(sys, 'argv', ['pv', 'invalid']):

@@ -15,12 +15,14 @@ def resolve_path(path_str):
     return os.path.abspath(os.path.expanduser(os.path.expandvars(path_str)))
 
 def handle_vault_command(args, defaults, notifier=None, credentials_module=None):
-    if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
-
     source_abs = resolve_path(args.source)
     project_name = args.name or os.path.basename(source_abs)
+
+    if not args.vault_path:
+        from src.common.paths import get_default_vault_path
+        args.vault_path = str(get_default_vault_path(project_name))
+        # Ensure parent dir exists (project home)
+        os.makedirs(os.path.dirname(args.vault_path), exist_ok=True)
 
     # Extract hooks
     hooks = defaults.get("hooks", {})
@@ -129,8 +131,11 @@ def handle_capsule_import_command(args, defaults):
         sys.exit(1)
 
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified to import into.[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
+        # Ensure parent dir exists
+        os.makedirs(os.path.dirname(args.vault_path), exist_ok=True)
 
     from src.common import capsule
     try:
@@ -167,8 +172,10 @@ def handle_init_command(args):
 
 def handle_status_command(args, defaults, credentials_module):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        # Smart default
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(resolve_path(args.source))
+        args.vault_path = str(get_default_vault_path(project_name))
 
     from projectclone import status_engine
 
@@ -195,8 +202,9 @@ def handle_status_command(args, defaults, credentials_module):
 
 def handle_diff_command(args, defaults):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
 
     source_root = os.getcwd()
 
@@ -209,8 +217,9 @@ def handle_diff_command(args, defaults):
 
 def handle_checkout_command(args, defaults):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
 
     source_root = os.getcwd()
 
@@ -224,8 +233,9 @@ def handle_checkout_command(args, defaults):
 
 def handle_browse_command(args, defaults):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified.[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = args.name or get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
 
     source_root = os.getcwd()
     project_name = args.name or os.path.basename(source_root)
@@ -260,14 +270,18 @@ def handle_list_command(args, defaults, credentials_module):
         list_engine.list_cloud_snapshots(args.bucket, key_id, app_key, getattr(args, 'endpoint', None))
     else:
         if not args.vault_path:
-            console.print("[error]Error: vault_path must be specified in CLI or pv.toml for local listing.[/error]")
-            sys.exit(1)
+            from src.common.paths import get_default_vault_path, get_project_name
+            project_name = get_project_name(os.getcwd())
+            args.vault_path = str(get_default_vault_path(project_name))
+            
         list_engine.list_local_snapshots(resolve_path(args.vault_path))
 
 def handle_push_command(args, defaults, credentials_module, notifier=None):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
+
     if not args.bucket:
         console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
         sys.exit(1)
@@ -300,8 +314,12 @@ def handle_push_command(args, defaults, credentials_module, notifier=None):
 
 def handle_pull_command(args, defaults, credentials_module):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
+        # Ensure exists for pull
+        os.makedirs(args.vault_path, exist_ok=True)
+
     if not args.bucket:
         console.print("[error]Error: Bucket must be specified in CLI or pyproject.toml[/error]")
         sys.exit(1)
@@ -327,16 +345,20 @@ def handle_pull_command(args, defaults, credentials_module):
 
 def handle_check_integrity_command(args, defaults):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
+
     from projectclone import integrity_engine
     if not integrity_engine.verify_vault(resolve_path(args.vault_path)):
         sys.exit(1)
 
 def handle_gc_command(args, defaults):
     if not args.vault_path:
-        console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
-        sys.exit(1)
+        from src.common.paths import get_default_vault_path, get_project_name
+        project_name = get_project_name(os.getcwd())
+        args.vault_path = str(get_default_vault_path(project_name))
+
     from projectclone import gc_engine
     gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
 
