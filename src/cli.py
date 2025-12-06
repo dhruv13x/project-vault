@@ -169,9 +169,44 @@ def _real_main():
         sys.argv[0] = module_name
         del sys.argv[1]
 
-        # Inject config values if not present in args
-        if defaults.get("vault_path") and "--dest" not in sys.argv:
-            sys.argv.extend(["--dest", defaults["vault_path"]])
+        # Use imported paths for smart defaults
+        try:
+            from src.common.paths import get_default_backup_path, get_project_name, get_default_restore_destination
+        except ImportError:
+            # Fallback if common paths not available in src context (e.g. installed package)
+            from common.paths import get_default_backup_path, get_project_name, get_default_restore_destination
+        
+        project_name = get_project_name(os.getcwd())
+
+        if subcommand == "backup":
+            # Inject --dest for backup command
+            if "--dest" not in sys.argv:
+                if defaults.get("vault_path"): # Check if user configured vault_path
+                    sys.argv.extend(["--dest", defaults["vault_path"]])
+                else:
+                    is_archive = "--archive" in sys.argv or "-a" in sys.argv
+                    backup_type = "archive" if is_archive else "folder"
+                    default_path = get_default_backup_path(project_name, backup_type=backup_type)
+                    sys.argv.extend(["--dest", str(default_path)])
+        elif subcommand == "archive-restore":
+            # Inject --extract-dir for archive-restore command
+            if "--extract-dir" not in sys.argv:
+                if defaults.get("restore_path"):
+                    sys.argv.extend(["--extract-dir", defaults["restore_path"]])
+                else:
+                    default_path = get_default_restore_destination(project_name)
+                    sys.argv.extend(["--extract-dir", str(default_path)])
+            
+            # Inject --backup-dir for archive-restore command (where to look for archives)
+            if "--backup-dir" not in sys.argv:
+                if defaults.get("vault_path"): # Using vault_path as a general storage root
+                    sys.argv.extend(["--backup-dir", defaults["vault_path"]])
+                else:
+                    # Default to where archive backups are usually stored
+                    default_path = get_default_backup_path(project_name, backup_type="archive")
+                    sys.argv.extend(["--backup-dir", str(default_path)])
+
+
         if defaults.get("bucket") and "--bucket" not in sys.argv:
             sys.argv.extend(["--bucket", defaults["bucket"]])
         if defaults.get("endpoint") and "--endpoint" not in sys.argv:

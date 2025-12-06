@@ -36,10 +36,24 @@ def get_default_vault_path(project_name: str = None) -> Path:
         project_name = get_project_name()
     return get_project_home(project_name) / "vault"
 
-def get_default_backup_path(project_name: str = None) -> Path:
+def get_default_backup_path(project_name: str = None, backup_type: str = "folder") -> Path:
     """
-    Returns the default legacy backup path: ~/.project_vault/<project_name>/backups
+    Returns the default legacy backup path: 
+    - ~/.project_vault/<project_name>/backups (for folders)
+    - ~/.project_vault/<project_name>/archive_backups (for archives)
     """
     if not project_name:
         project_name = get_project_name()
-    return get_project_home(project_name) / "backups"
+    
+    folder_name = "archive_backups" if backup_type == "archive" else "backups"
+    return get_project_home(project_name) / folder_name
+
+def get_default_restore_destination(project_name: str = None) -> Path:
+    """
+    Returns the default destination path for restored projects.
+    ~/.project_vault/<project_name>/restored_projects
+    """
+    if not project_name:
+        project_name = get_project_name()
+    return get_project_home(project_name) / "restored_projects"
+

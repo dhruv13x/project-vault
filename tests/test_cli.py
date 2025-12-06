@@ -102,11 +102,13 @@ def mock_full_env():
         yield mock_get_env
 
 class TestMainCli:
+    @patch.dict('sys.modules', {'src.common.paths': MagicMock()})
     def test_backup_passthrough(self, mock_sys_exit, mock_projectclone_cli, mock_config_load, mock_full_env):
+        mock_paths = sys.modules['src.common.paths']
+        mock_paths.get_default_backup_path.return_value = "/default/backups"
+        mock_paths.get_project_name.return_value = "mock_project"
+        
         sys.argv = ['pv', 'backup', 'arg1', 'arg2']
-
-        # We need to ensure importlib.import_module works as expected.
-        # The mock_projectclone_cli fixture now patches importlib.import_module.
         
         mock_sys_exit.side_effect = SystemExit(0)
         try:
@@ -115,9 +117,15 @@ class TestMainCli:
             pass
         
         mock_projectclone_cli.main.assert_called_once()
-        assert sys.argv == ['projectclone', 'arg1', 'arg2']
+        assert sys.argv == ['projectclone', 'arg1', 'arg2', '--dest', '/default/backups']
 
+    @patch.dict('sys.modules', {'src.common.paths': MagicMock()})
     def test_archive_restore_passthrough(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load, mock_full_env):
+        mock_paths = sys.modules['src.common.paths']
+        mock_paths.get_default_restore_destination.return_value = "/default/restores_dest"
+        mock_paths.get_default_backup_path.return_value = "/default/archive_backups_source"
+        mock_paths.get_project_name.return_value = "mock_project"
+
         sys.argv = ['pv', 'archive-restore', 'arg1']
         
         mock_sys_exit.side_effect = SystemExit(0)
@@ -127,7 +135,7 @@ class TestMainCli:
             pass
         
         mock_projectrestore_cli.main.assert_called_once()
-        assert sys.argv == ['projectrestore', 'arg1']
+        assert sys.argv == ['projectrestore', 'arg1', '--extract-dir', '/default/restores_dest', '--backup-dir', '/default/archive_backups_source']
 
     def test_backup_passthrough_with_config_dest(self, mock_sys_exit, mock_projectclone_cli, mock_full_env):
          with patch('cli.config.load_project_config', return_value={'vault_path': '/config/vault'}) as mock_load:
@@ -174,14 +182,20 @@ class TestMainCli:
             mock_projectclone_cli.main.assert_called_once()
             assert sys.argv == ['projectclone', 'source_dir', '--dest', '/config/vault']
 
+    @patch.dict('sys.modules', {'src.common.paths': MagicMock()})
     def test_restore_command_dispatches(self, mock_sys_exit, mock_projectrestore_cli, mock_config_load, mock_full_env):
+        mock_paths = sys.modules['src.common.paths']
+        mock_paths.get_default_restore_destination.return_value = "/default/restores_dest"
+        mock_paths.get_default_backup_path.return_value = "/default/archive_backups_source"
+        mock_paths.get_project_name.return_value = "mock_project"
+
         sys.argv = ['pv', 'archive-restore', 'some_arg']
         try:
              main()
         except SystemExit:
              pass
         mock_projectrestore_cli.main.assert_called_once()
-        assert sys.argv == ['projectrestore', 'some_arg']
+        assert sys.argv == ['projectrestore', 'some_arg', '--extract-dir', '/default/restores_dest', '--backup-dir', '/default/archive_backups_source']
 
     def test_vault_command_calls_cas_engine(self, mock_sys_exit, mock_cas_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path']
@@ -450,13 +464,17 @@ class TestMainCli:
         main()
         mock_list_engine.list_local_snapshots.assert_called_once_with(os.path.abspath('/vault'))
 
-    def test_list_local_missing_vault(self, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env, mock_list_engine):
+    @patch("src.common.paths.get_default_vault_path")
+    @patch("projectclone.list_engine.list_local_snapshots")
+    def test_list_local_missing_vault(self, mock_list, mock_get_default, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list']
         mock_config_load.return_value = {'vault_path': None}
+        mock_get_default.return_value = "/default/vault"
         
         main()
         
-        mock_list_engine.list_local_snapshots.assert_called_once()
+        mock_get_default.assert_called_once()
+        mock_list.assert_called_once()
         mock_sys_exit.assert_not_called()
 
     def test_gc_command(self, mock_sys_exit, mock_gc_engine, mock_config_load, mock_full_env):
