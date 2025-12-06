@@ -112,8 +112,10 @@ class TestBackupToVault:
         manifest_path = cas_engine.backup_to_vault(str(source_dir), str(vault_dir))
         data = manifest.load_manifest(manifest_path)
         
-        assert len(data["files"]) == 1
+        # We expect file1.txt AND .vaultignore (which is always backed up)
+        assert len(data["files"]) == 2
         assert "file1.txt" in data["files"]
+        assert ".vaultignore" in data["files"]
         assert "file2.log" not in data["files"]
         assert not any("subdir" in key for key in data["files"])
 
