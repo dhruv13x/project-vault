@@ -62,6 +62,42 @@ def handle_vault_restore_command(args, defaults):
         hooks=hooks
     )
 
+def handle_capsule_export_command(args, defaults):
+    if not args.manifest:
+        console.print("[error]Error: Manifest path must be specified.[/error]")
+        sys.exit(1)
+
+    if not args.output:
+        console.print("[error]Error: Output path for capsule (.pvc) must be specified.[/error]")
+        sys.exit(1)
+
+    from src.common import capsule
+    try:
+        capsule_path = capsule.pack_capsule(resolve_path(args.manifest), resolve_path(args.output))
+        console.print(f"[success]✅ Capsule exported to: {capsule_path}[/success]")
+    except Exception as e:
+        console.print(f"[error]Error exporting capsule: {e}[/error]")
+        sys.exit(1)
+
+def handle_capsule_import_command(args, defaults):
+    if not args.capsule:
+        console.print("[error]Error: Capsule path (.pvc) must be specified.[/error]")
+        sys.exit(1)
+
+    if not args.vault_path:
+        console.print("[error]Error: vault_path must be specified to import into.[/error]")
+        sys.exit(1)
+
+    from src.common import capsule
+    try:
+        manifest_path = capsule.unpack_capsule(resolve_path(args.capsule), resolve_path(args.vault_path))
+        console.print(f"[success]✅ Capsule imported into vault.[/success]")
+        console.print(f"   Manifest: {manifest_path}")
+        console.print(f"   To restore it, run: pv vault-restore {manifest_path} --dest <destination>")
+    except Exception as e:
+        console.print(f"[error]Error importing capsule: {e}[/error]")
+        sys.exit(1)
+
 def handle_init_command(args):
     import common.config as config
     if args.pyproject:
