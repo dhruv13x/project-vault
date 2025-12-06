@@ -69,13 +69,13 @@ Each level deepens the same core superpower:
 
 ### 2.3. Verify-Clone (Prove the Magic)
 
-- [ ] `pv verify-clone <original_path> <clone_path>`:
+- [x] `pv verify-clone <original_path> <clone_path>`:
   - Walk both trees and verify bit-identical content.
   - Show friendly summary: `Verification successful: Capsule is perfect.`
 
 ### 2.4. First-class "Capsule" Concept
 
-- [ ] Introduce `pv capsule create` / `restore` aliases.
+- [x] Introduce `pv capsule create` / `restore` aliases.
 - [ ] Official on-disk capsule format (`*.pvc`) for sharing via USB/Email.
 - [ ] Capsule Metadata: Embed `source_os`, `hostname`, `created_at` in snapshots.
 
