@@ -44,9 +44,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.cas_engine.backup_to_vault")
-    def test_handle_vault_command_missing_path(self, mock_backup, mock_get_default, mock_console, mock_exit):
+    def test_handle_vault_command_missing_path(self, mock_backup, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, source="/source", name=None)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         mock_backup.return_value = "manifest"
         
         cli_dispatch.handle_vault_command(args, {})
@@ -200,9 +200,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.status_engine.show_status")
-    def test_handle_status_command_missing_path(self, mock_status, mock_get_default, mock_console, mock_exit):
+    def test_handle_status_command_missing_path(self, mock_status, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, source="/source", bucket=None)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         cli_dispatch.handle_status_command(args, {}, None)
         
@@ -228,9 +228,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.diff_engine.show_diff")
-    def test_handle_diff_command_missing_path(self, mock_diff, mock_get_default, mock_console, mock_exit):
+    def test_handle_diff_command_missing_path(self, mock_diff, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, file="file")
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         cli_dispatch.handle_diff_command(args, {})
         
@@ -246,9 +246,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.checkout_engine.checkout_file")
-    def test_handle_checkout_command_missing_path(self, mock_checkout, mock_get_default, mock_console, mock_exit):
+    def test_handle_checkout_command_missing_path(self, mock_checkout, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, file="file", force=False)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         cli_dispatch.handle_checkout_command(args, {})
         
@@ -264,10 +264,10 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("src.tui.ProjectVaultApp")
-    def test_handle_browse_command_missing_path(self, mock_app, mock_get_default, mock_console, mock_exit):
+    def test_handle_browse_command_missing_path(self, mock_app, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None)
         args.name = None
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         cli_dispatch.handle_browse_command(args, {})
         
@@ -312,9 +312,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.list_engine.list_local_snapshots")
-    def test_handle_list_command_local_missing_path(self, mock_list, mock_get_default, mock_console, mock_exit):
+    def test_handle_list_command_local_missing_path(self, mock_list, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(cloud=False, vault_path=None)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         cli_dispatch.handle_list_command(args, {}, None)
         
@@ -386,9 +386,10 @@ class TestCliDispatch:
         notifier.send_message.assert_called()
 
     @patch("src.common.paths.get_default_vault_path")
-    def test_handle_pull_command_missing_args(self, mock_get_default, mock_console, mock_exit):
+    def test_handle_pull_command_missing_args(self, mock_get_default, mock_console, mock_exit, tmp_path):
+        # Test missing vault path (gets defaulted) AND missing bucket (errors out)
         args = MagicMock(vault_path=None, bucket=None)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         with pytest.raises(ExitException):
             cli_dispatch.handle_pull_command(args, {}, None)
@@ -421,9 +422,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.integrity_engine.verify_vault")
-    def test_handle_check_integrity_command_missing_path(self, mock_verify, mock_get_default, mock_console, mock_exit):
+    def test_handle_check_integrity_command_missing_path(self, mock_verify, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         mock_verify.return_value = True
         
         cli_dispatch.handle_check_integrity_command(args, {})
@@ -450,9 +451,9 @@ class TestCliDispatch:
 
     @patch("src.common.paths.get_default_vault_path")
     @patch("projectclone.gc_engine.run_garbage_collection")
-    def test_handle_gc_command_missing_path(self, mock_gc, mock_get_default, mock_console, mock_exit):
+    def test_handle_gc_command_missing_path(self, mock_gc, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, dry_run=True)
-        mock_get_default.return_value = "/default/vault"
+        mock_get_default.return_value = str(tmp_path / "default_vault")
         
         cli_dispatch.handle_gc_command(args, {})
         
