@@ -41,7 +41,9 @@ from src.cli_dispatch import (
     handle_gc_command,
     handle_config_command,
     handle_notify_test_command,
-    check_cloud_env
+    check_cloud_env,
+    handle_capsule_export_command,
+    handle_capsule_import_command
 )
 
 # Try to import RichHelpFormatter for better help output
@@ -241,6 +243,17 @@ def _real_main():
     capsule_restore_parser.add_argument("manifest", help="Path to manifest.json")
     capsule_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"))
 
+    # pv capsule export
+    capsule_export_parser = capsule_subparsers.add_parser("export", help="Export a snapshot to a .pvc capsule file")
+    capsule_export_parser.add_argument("manifest", help="Path to manifest.json to export")
+    capsule_export_parser.add_argument("-o", "--output", required=True, help="Output .pvc file path")
+
+    # pv capsule import
+    capsule_import_parser = capsule_subparsers.add_parser("import", help="Import a .pvc capsule file into the vault")
+    capsule_import_parser.add_argument("capsule", help="Path to .pvc capsule file")
+    capsule_import_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Target vault path")
+
+
     # --- Push Command ---
     push_parser = subparsers.add_parser("push", add_help=False)
     push_parser.add_argument("-h", "--help", action=RichPushHelpAction)
@@ -351,6 +364,10 @@ def _real_main():
         elif args.capsule_command == "restore":
             # Map to vault-restore command handler
             handle_vault_restore_command(args, defaults)
+        elif args.capsule_command == "export":
+            handle_capsule_export_command(args, defaults)
+        elif args.capsule_command == "import":
+            handle_capsule_import_command(args, defaults)
         else:
              from src.cli_help import print_capsule_help
              print_capsule_help()

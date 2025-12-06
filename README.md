@@ -85,6 +85,7 @@ For servers, CI/CD, or minimal environments, you can install the components inde
 *   **Symlink Support**: Fully supports backing up and restoring symbolic links as first-class objects.
 *   **Clone Verification**: Verify that a restored project is bit-identical to the source with `pv verify-clone`.
 *   **Capsule Management**: Manage snapshots easily with `pv capsule create` and `pv capsule restore` aliases.
+*   **Capsule Portability**: Export snapshots to `.pvc` files for sharing via email/USB with `pv capsule export`.
 
 ---
 
@@ -150,7 +151,7 @@ pv checkout src/main.py
 | `pv config set-creds` | Save credentials to `pv.toml` (requires manual security override). |
 | `pv init` | Create a default `pv.toml` configuration file. Use `--smart` to auto-detect project type and generate `.pvignore`. |
 | `pv verify-clone` | Verify that a restored project is bit-identical to the source. |
-| `pv capsule` | Manage capsules (aliases for vault operations). |
+| `pv capsule` | Manage capsules (aliases for vault operations, plus export/import). |
 | `pv backup` | (Legacy) Create a file-based backup. |
 | `pv archive-restore` | (Legacy) Restore a file-based backup. |
 

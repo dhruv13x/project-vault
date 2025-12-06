@@ -2,6 +2,8 @@
 
 import json
 import os
+import platform
+import socket
 from datetime import datetime, timezone
 from typing import Dict, Any
 
@@ -18,10 +20,14 @@ def create_snapshot_structure(source_path: str) -> Dict[str, Any]:
         A dictionary containing the timestamp, absolute source path, empty files dictionary,
         and manifest version.
     """
+    now = datetime.now(timezone.utc).isoformat()
     return {
         "version": MANIFEST_VERSION,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now,
+        "created_at": now,
         "source_path": os.path.abspath(source_path),
+        "source_os": platform.system(),
+        "hostname": socket.gethostname(),
         "files": {}
     }
 

@@ -76,8 +76,8 @@ Each level deepens the same core superpower:
 ### 2.4. First-class "Capsule" Concept
 
 - [x] Introduce `pv capsule create` / `restore` aliases.
-- [ ] Official on-disk capsule format (`*.pvc`) for sharing via USB/Email.
-- [ ] Capsule Metadata: Embed `source_os`, `hostname`, `created_at` in snapshots.
+- [x] Official on-disk capsule format (`*.pvc`) for sharing via USB/Email.
+- [x] Capsule Metadata: Embed `source_os`, `hostname`, `created_at` in snapshots.
 
 ---
 
