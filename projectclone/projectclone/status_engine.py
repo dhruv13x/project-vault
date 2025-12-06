@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -181,6 +182,49 @@ def get_cloud_status(vault_path: str, bucket: str, endpoint: str, key_id: str, a
 def show_status(source_path, vault_path, cloud_config=None):
     console = Console()
     
+    abs_source = os.path.abspath(source_path)
+    abs_vault = os.path.abspath(vault_path)
+
+    # --- Safety Checks ---
+    if abs_source == abs_vault:
+        console.print("[bold red]⛔ Error: Source and Vault paths cannot be the same.[/bold red]")
+        console.print("   Using the source directory as the vault causes infinite recursion and data corruption.")
+        return
+
+    # Check nesting
+    if abs_vault.startswith(abs_source) and (
+        len(abs_vault) == len(abs_source) or abs_vault[len(abs_source)] == os.sep
+    ):
+        # Check if ignored
+        rel_vault = os.path.relpath(abs_vault, abs_source)
+        
+        # Load ignores to check
+        ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore']
+        pvignore_path = os.path.join(source_path, ".pvignore")
+        if os.path.exists(pvignore_path):
+            ignore_patterns.extend(ignore.parse_ignore_file(pvignore_path))
+        
+        # We use a simple check here or reuse scanner logic. 
+        # scanner.matches_excludes is robust.
+        from projectclone.scanner import matches_excludes, get_project_ignore_spec
+        
+        # We need to check if the VAULT folder itself is ignored.
+        # matches_excludes checks against ignore_spec.
+        spec = get_project_ignore_spec(Path(source_path))
+        
+        # Also check standard ignores list manually if not in spec?
+        # get_project_ignore_spec handles .pvignore. 
+        # We should also pass the default system ignores if we want to be consistent, 
+        # but usually vault isn't .git.
+        
+        # matches_excludes expects an absolute path (or one resolvable to inside root)
+        # We already have abs_vault.
+        
+        # We explicitly check if the vault path matches the ignore spec.
+        # Note: matches_excludes resolves paths.
+        if not matches_excludes(Path(abs_vault), root=Path(source_path), ignore_spec=spec):
+             console.print("[bold red]⛔ Error: Vault path is inside Source path but not ignored.[/bold red]")
+
     # Header
     console.print(Panel.fit(
         f"[bold blue]Project Vault Status[/bold blue]\n"

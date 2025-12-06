@@ -32,12 +32,15 @@ def create_archive(
     manifest: bool = False,
     manifest_sha: bool = False,
     log_fp=None,
+    excludes: Optional[List[str]] = None,
+    exclude_symlinks: bool = False,
 ) -> Path:
     """
     Create gzip tarball at dest_temp_file (ensure proper .tar.gz suffix) and return its Path.
     - dest_temp_file may already include .tar.gz or not; we normalize.
     - This function will NOT register the final archive for cleanup; callers should register the
       containing tmp directory if they want automatic cleanup.
+    - Replaced recursive tar.add with manual walk to support consistent excludes and symlink filtering.
     """
     # normalize final path to end with .tar.gz
     name = str(dest_temp_file)
@@ -49,6 +52,7 @@ def create_archive(
     ensure_dir(final_temp.parent)
 
     top_level = arcname or src.name
+    ignore_spec = get_project_ignore_spec(src)
 
     try:
         if log_fp:
@@ -56,13 +60,121 @@ def create_archive(
                 log_fp.write(f"Creating archive at temp {final_temp}\n")
             except Exception:
                 pass
-        # Use PAX format for better compatibility.
-        # Pass dereference to tarfile.open (control whether symlinks are followed).
-        with tarfile.open(final_temp, "w:gz", format=tarfile.PAX_FORMAT, dereference=not preserve_symlinks) as tar:
-            if src.is_file():
-                tar.add(str(src), arcname=str(top_level), recursive=False)
+        
+        # We manually walk the directory to ensure excludes and symlink rules are respected
+        # exactly like in copy_tree_atomic.
+        # dereference=True in gettarinfo matches "not preserve_symlinks" (follow links).
+        
+        with tarfile.open(final_temp, "w:gz", format=tarfile.PAX_FORMAT) as tar:
+            # Add the root directory itself first (if it's a directory)
+            if src.is_dir():
+                # For the root dir, we add it as a directory structure
+                t_info = tar.gettarinfo(str(src), arcname=str(top_level))
+                tar.addfile(t_info)
+                
+                # Walk
+                # If preserve_symlinks is True, we generally don't want to follow them in os.walk
+                # BUT os.walk followlinks=True is about *directory* symlinks.
+                # If we preserve symlinks, we treat them as files, so we don't follow.
+                for dirpath, dirnames, filenames in os.walk(src, followlinks=not preserve_symlinks):
+                    d_root = Path(dirpath)
+                    
+                    # Filter directories (in-place for os.walk pruning)
+                    i = 0
+                    while i < len(dirnames):
+                         d = dirnames[i]
+                         full_d = d_root / d
+                         if matches_excludes(full_d, excludes, root=src, ignore_spec=ignore_spec):
+                             del dirnames[i]
+                         else:
+                             i += 1
+                    
+                    # Calculate arcname relative path
+                    rel_dir = os.path.relpath(dirpath, str(src))
+                    if rel_dir == ".":
+                        base_arc = top_level
+                    else:
+                        base_arc = str(Path(top_level) / rel_dir)
+
+                    # We already added the root, so skipping "." if we did
+                    if rel_dir != ".":
+                        t_info = tar.gettarinfo(dirpath, arcname=base_arc)
+                        tar.addfile(t_info)
+
+                    for fn in filenames:
+                        src_fp = Path(dirpath) / fn
+                        
+                        # Check excludes
+                        if matches_excludes(src_fp, excludes, root=src, ignore_spec=ignore_spec):
+                            continue
+                        
+                        # Check symlink exclusion
+                        if exclude_symlinks and src_fp.is_symlink():
+                            if log_fp:
+                                try:
+                                    log_fp.write(f"Skipping symlink (excluded): {src_fp}\n")
+                                except: pass
+                            continue
+
+                        arc_path = str(Path(base_arc) / fn)
+                        
+                        try:
+                            # gettarinfo with dereference logic
+                            # If preserve_symlinks=True -> dereference=False (store as link)
+                            # If preserve_symlinks=False -> dereference=True (store content)
+                            # NOTE: gettarinfo with dereference=True will raise FileNotFoundError if link is broken
+                            
+                            t_info = tar.gettarinfo(str(src_fp), arcname=arc_path)
+                            
+                            # Force dereference if requested and it's a symlink
+                            if not preserve_symlinks and src_fp.is_symlink():
+                                # gettarinfo(dereference=False) by default in some python versions?
+                                # actually tar.gettarinfo has no dereference arg in older python?
+                                # Wait, checked docs: gettarinfo(name, arcname, fileobj)
+                                # It stat()s the file. os.stat follows symlinks. os.lstat does not.
+                                # tarfile.gettarinfo uses os.lstat by default! 
+                                # To follow symlinks, we need to pass the stat object of the target?
+                                # Or just rely on addfile?
+                                
+                                # Actually, `tar.add` handles this. Since we are manual, we must do it.
+                                # If we want to store CONTENT of a symlink:
+                                # We must treat it as a file.
+                                
+                                if src_fp.exists(): # Target exists
+                                    # stat the target
+                                    s = src_fp.stat() 
+                                    t_info = tarfile.TarInfo(name=arc_path)
+                                    t_info.size = s.st_size
+                                    t_info.mtime = s.st_mtime
+                                    t_info.mode = s.st_mode
+                                    t_info.type = tarfile.REGTYPE
+                                    with open(src_fp, "rb") as f:
+                                        tar.addfile(t_info, fileobj=f)
+                                else:
+                                    if log_fp:
+                                        log_fp.write(f"Skipping broken link: {src_fp}\n")
+                            else:
+                                # Preserve symlink OR regular file
+                                # gettarinfo uses lstat, so it handles symlinks correctly (as links)
+                                # providing we don't override it.
+                                
+                                if t_info.isreg():
+                                    with open(src_fp, "rb") as f:
+                                        tar.addfile(t_info, fileobj=f)
+                                else:
+                                    # Symlink, directory, etc.
+                                    tar.addfile(t_info)
+                                    
+                        except Exception as e:
+                            if log_fp:
+                                try:
+                                    log_fp.write(f"Error adding {src_fp}: {e}\n")
+                                except: pass
+
             else:
-                tar.add(str(src), arcname=str(top_level), recursive=True)
+                # Single file backup
+                tar.add(str(src), arcname=str(top_level), recursive=False)
+
     except Exception:
         # remove partial archive if any
         try:

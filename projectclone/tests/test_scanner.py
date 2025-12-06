@@ -51,8 +51,17 @@ class TestExcludesAndScanning:
     def test_matches_excludes(self, temp_dir, sample_excludes):
         # Glob match
         assert matches_excludes(temp_dir / "file2.bin", sample_excludes) is True
-        # Substring match
-        assert matches_excludes(temp_dir / "subdir" / "file3.txt", sample_excludes) is True
+        
+        # Directory match (exact name)
+        assert matches_excludes(temp_dir / "subdir", sample_excludes) is True
+        
+        # Child file check: matches_excludes matches the path itself against patterns.
+        # "subdir" pattern matches "subdir" path.
+        # It does NOT match "subdir/file3.txt" directly via fnmatch.
+        # The recursion filtering happens in walk_stats via directory pruning.
+        # So this should be False for the file path itself.
+        assert matches_excludes(temp_dir / "subdir" / "file3.txt", sample_excludes) is False
+        
         # No match
         assert matches_excludes(temp_dir / "file1.txt", sample_excludes) is False
         # Relative/absolute

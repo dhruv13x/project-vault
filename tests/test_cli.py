@@ -190,7 +190,8 @@ class TestMainCli:
             os.path.abspath('my_source'),
             os.path.abspath('/my_vault_path'),
             project_name='my_source',
-            hooks={}
+            hooks={},
+            follow_symlinks=True
         )
         mock_sys_exit.assert_not_called()
 
@@ -201,7 +202,8 @@ class TestMainCli:
             os.path.abspath('my_source'),
             os.path.abspath('/my_vault_path'),
             project_name='custom_name',
-            hooks={}
+            hooks={},
+            follow_symlinks=True
         )
         mock_sys_exit.assert_not_called()
 

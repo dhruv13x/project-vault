@@ -15,6 +15,9 @@ Creates a content-addressable snapshot of the [yellow]source[/] directory (defau
   [yellow]source[/]          Source directory to back up. Defaults to '.'.
   [yellow]vault_path[/]      Destination vault directory. Can be set in config.
   [yellow]--name <name>[/]    Set a custom project name for the snapshot.
+  [yellow]--symlinks[/]      Preserve symlinks as links (default: follow them).
+  [yellow]--cloud[/]         Push the vault content to cloud storage immediately.
+  [yellow]--bucket <B>[/]     Cloud bucket name (required if --cloud is used).
   [yellow]-h, --help[/]        Show this help message.
 """), title="[bold]Help: `pv vault`[/]", border_style="blue"))
 

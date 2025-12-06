@@ -75,6 +75,8 @@ def print_restore_help():
         """
 This command safely restores a project from a `.tar.gz` archive created by `pv clone --archive`.
 
+[bold yellow]Note:[/bold yellow] If you created a standard folder backup (without --archive), you can simply copy/move that folder back to your workspace location using your system's file manager or `cp` command.
+
 [bold green]Usage Examples:[/bold green]
   [cyan]pv restore[/cyan]                          Restore the latest backup from the default location.
   [cyan]pv restore --file backup.tar.gz[/cyan]     Restore a specific archive file.

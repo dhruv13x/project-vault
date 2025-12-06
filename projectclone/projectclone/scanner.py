@@ -68,8 +68,6 @@ def matches_excludes(
                 fnmatch.fnmatch(rel_str, norm)
                 or fnmatch.fnmatch(basename, norm)
                 or fnmatch.fnmatch(path_str, norm)
-                or (norm in rel_str)
-                or (norm in basename)
             ):
                 return True
 

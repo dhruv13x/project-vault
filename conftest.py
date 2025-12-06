@@ -13,36 +13,21 @@ pclone = os.path.join(root_dir, "projectclone")
 prestore = os.path.join(root_dir, "projectrestore")
 psrc = os.path.join(root_dir, "src")
 
-# Remove root_dir from sys.path to avoid namespace package confusion
-if root_dir in sys.path:
-    print(f"DEBUG: removing {root_dir} from sys.path")
-    sys.path.remove(root_dir)
-# Also remove cwd if it matches root_dir (common case)
-cwd = os.getcwd()
-if cwd == root_dir and cwd in sys.path:
-    print(f"DEBUG: removing cwd {cwd} from sys.path")
-    sys.path.remove(cwd)
+# We used to remove root_dir here to avoid namespace confusion, but that caused
+# the installed 'site-packages' version to win over the local version.
+# Now we simply rely on prepending (insert at 0) to ensure local files win.
 
-# Also remove "." if present
-if "." in sys.path:
-    print(f"DEBUG: removing '.' from sys.path")
-    sys.path.remove(".")
-
-# Also remove empty string "" (often CWD) if present
-if "" in sys.path:
-    print(f"DEBUG: removing '' from sys.path")
-    sys.path.remove("")
 
 print(f"DEBUG: inserting {pclone}")
 print(f"DEBUG: inserting {prestore}")
 print(f"DEBUG: inserting {psrc}")
+print(f"DEBUG: inserting {root_dir}")
 
-sys.path.insert(0, pclone)
+# Insert all required paths at the beginning to ensure local versions take precedence
+# over site-packages. Order matters: sub-projects first, then root.
+sys.path.insert(0, psrc)      # For 'common' if imported directly (legacy)
 sys.path.insert(0, prestore)
-sys.path.insert(0, psrc)  # For 'common'
-
-# Add root_dir to the END of sys.path to allow imports of scripts/modules in root if any (like conftest itself?)
-# But strictly after package roots.
-sys.path.append(root_dir)
+sys.path.insert(0, pclone)
+sys.path.insert(0, root_dir)  # For 'src.common' style imports
 
 print(f"DEBUG: sys.path={sys.path}")

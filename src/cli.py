@@ -213,6 +213,10 @@ def _real_main():
     vault_parser.add_argument("source", nargs="?", default=".")
     vault_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
     vault_parser.add_argument("--name", help="Project name for organizing snapshots (default: source directory name)")
+    vault_parser.add_argument("--symlinks", action="store_true", help="preserve symlinks instead of copying targets")
+    vault_parser.add_argument("--cloud", action="store_true", help="push to cloud after creating snapshot")
+    vault_parser.add_argument("--bucket", default=defaults.get("bucket"), help="target cloud bucket")
+    vault_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="cloud endpoint")
 
     # --- Vault Restore Command ---
     vault_restore_parser = subparsers.add_parser("vault-restore", add_help=False)
@@ -236,6 +240,10 @@ def _real_main():
     capsule_create_parser.add_argument("source", nargs="?", default=".")
     capsule_create_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
     capsule_create_parser.add_argument("--name", help="Project name")
+    capsule_create_parser.add_argument("--symlinks", action="store_true", help="preserve symlinks instead of copying targets")
+    capsule_create_parser.add_argument("--cloud", action="store_true", help="push to cloud after creating snapshot")
+    capsule_create_parser.add_argument("--bucket", default=defaults.get("bucket"))
+    capsule_create_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
 
     # pv capsule restore -> pv vault-restore
     capsule_restore_parser = capsule_subparsers.add_parser("restore", add_help=False)
@@ -349,7 +357,7 @@ def _real_main():
     # The clone/restore commands are handled by the special block at the top.
     # This section handles the direct commands.
     if args.command == "vault":
-        handle_vault_command(args, defaults, notifier)
+        handle_vault_command(args, defaults, notifier, credentials)
 
     elif args.command == "vault-restore":
         handle_vault_restore_command(args, defaults)
@@ -360,7 +368,7 @@ def _real_main():
     elif args.command == "capsule":
         if args.capsule_command == "create":
             # Map to vault command handler
-            handle_vault_command(args, defaults, notifier)
+            handle_vault_command(args, defaults, notifier, credentials)
         elif args.capsule_command == "restore":
             # Map to vault-restore command handler
             handle_vault_restore_command(args, defaults)

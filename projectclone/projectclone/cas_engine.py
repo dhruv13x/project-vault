@@ -5,7 +5,7 @@ import os
 from src.common import cas, manifest, ignore
 
 
-def backup_to_vault(source_path: str, vault_path: str, project_name: str = None, hooks: dict = None) -> str:
+def backup_to_vault(source_path: str, vault_path: str, project_name: str = None, hooks: dict = None, follow_symlinks: bool = False) -> str:
     """
     Performs a content-addressable backup of the source path to the vault.
 
@@ -88,7 +88,7 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
     print(f"Starting backup of '{source_path}' to '{vault_path}'...")
 
     # Walk through the source directory
-    for root, dirs, files in os.walk(source_path):
+    for root, dirs, files in os.walk(source_path, followlinks=follow_symlinks):
         # Calculate relative path for directory check
         rel_root = os.path.relpath(root, source_path)
         if rel_root == ".":
@@ -115,7 +115,8 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
 
             try:
                 # Check for Symlink
-                if os.path.islink(full_path):
+                # If follow_symlinks is True, we treat symlinks to files as regular files (dereference)
+                if os.path.islink(full_path) and not follow_symlinks:
                     target_path = os.readlink(full_path)
                     lstat = os.lstat(full_path)
 
@@ -127,6 +128,7 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
                     }
                     print(f"Symlink: {file_rel} -> {target_path}")
                 else:
+                    # Regular file OR symlink when follow_symlinks=True
                     # Capture Metadata
                     stat = os.stat(full_path)
 

@@ -14,7 +14,7 @@ def resolve_path(path_str):
         return path_str
     return os.path.abspath(os.path.expanduser(os.path.expandvars(path_str)))
 
-def handle_vault_command(args, defaults, notifier=None):
+def handle_vault_command(args, defaults, notifier=None, credentials_module=None):
     if not args.vault_path:
         console.print("[error]Error: vault_path must be specified in CLI or pv.toml[/error]")
         sys.exit(1)
@@ -30,14 +30,58 @@ def handle_vault_command(args, defaults, notifier=None):
 
     from projectclone import cas_engine
     try:
+        # Resolve follow_symlinks from args (default to False if not present to match legacy behavior of preserving by default)
+        # If args.symlinks is set (Preserve), follow is False.
+        # If args.symlinks is not set (Follow), follow is True?
+        # Wait, let's match the logic decided:
+        # --symlinks means PRESERVE. Default is FOLLOW.
+        # So follow_symlinks = not args.symlinks
+        
+        preserve_symlinks = getattr(args, "symlinks", False)
+        
         manifest_path = cas_engine.backup_to_vault(
             source_abs,
             resolve_path(args.vault_path),
             project_name=project_name,
-            hooks=hooks
+            hooks=hooks,
+            follow_symlinks=not preserve_symlinks
         )
         if notifier:
             notifier.send_message(f"✅ Snapshot created for '{project_name}'\nManifest: {manifest_path}", level="success")
+            
+        # --- Cloud Sync Integration ---
+        if getattr(args, "cloud", False):
+            if not credentials_module:
+                console.print("[warning]Warning: credentials_module not provided, skipping cloud sync.[/warning]")
+            else:
+                if not args.bucket:
+                    console.print("[error]Error: --bucket must be specified in CLI or pv.toml for cloud sync.[/error]")
+                    # We don't exit here to preserve the local backup success, but we report error
+                else:
+                    key_id, app_key, source = credentials_module.resolve_credentials(args)
+                    if not key_id or not app_key:
+                        console.print("[error]Error: Cloud credentials missing. Skipping push.[/error]")
+                        if notifier:
+                            notifier.send_message("❌ Cloud Push Failed: Credentials missing", level="error")
+                    else:
+                        console.print(f"[dim]Authenticated via {source}[/dim]")
+                        from projectclone import sync_engine
+                        try:
+                            sync_engine.sync_to_cloud(
+                                resolve_path(args.vault_path),
+                                args.bucket,
+                                args.endpoint,
+                                key_id,
+                                app_key,
+                                dry_run=getattr(args, "dry_run", False) # vault command doesn't have dry-run usually, but we should handle it if added
+                            )
+                            if notifier:
+                                notifier.send_message(f"☁️ Cloud Push Successful to '{args.bucket}'", level="success")
+                        except Exception as e:
+                            console.print(f"[error]Cloud Push Failed: {e}[/error]")
+                            if notifier:
+                                notifier.send_message(f"❌ Cloud Push Failed: {e}", level="error")
+
     except Exception as e:
         if notifier:
             notifier.send_message(f"🚨 Vault Snapshot Failed: {e}", level="error")

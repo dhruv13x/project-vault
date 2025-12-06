@@ -28,6 +28,7 @@ import argparse
 import datetime
 import os
 import sys
+import time
 import tempfile
 from pathlib import Path
 from rich.console import Console
@@ -80,14 +81,22 @@ This command creates a backup of a project. It can operate in three main modes:
   [cyan]pv clone <note> --archive[/cyan]           Create a compressed tarball.
   [cyan]pv clone <note> --incremental[/cyan]      Create an rsync-based incremental backup.
   [cyan]pv clone <note> --cloud --bucket mybucket[/cyan] Create backup and upload to the cloud.
+  [cyan]pv clone <note> --archive --exclude .venv[/cyan] Backup excluding .venv directory.
+  [cyan]pv clone <note> --archive --exclude-symlinks[/cyan] Backup excluding all symbolic links.
 
 [bold green]Key Options:[/bold green]
   [yellow]--dest <PATH>[/yellow]         Base destination folder for backups.
   [yellow]--keep <N>[/yellow]            Keep only the N newest backups for this project.
-  [yellow]--exclude <PATTERN>[/yellow]   Exclude files/dirs matching the pattern.
+  [yellow]--exclude <PATTERN>[/yellow]   Exclude files/dirs matching the pattern (e.g. [cyan].venv[/cyan]).
+  [yellow]--symlinks[/yellow]          Preserve symlinks as links (default: follow them).
+  [yellow]--exclude-symlinks[/yellow]  Exclude all symlinks from the backup.
   [yellow]--manifest-sha[/yellow]       Generate SHA256 checksums for all files (slower).
   [yellow]--yes[/yellow]                 Skip the confirmation prompt.
   [yellow]--dry-run[/yellow]              Simulate the backup without writing files.
+
+[bold green]Best Practices:[/bold green]
+  • Run [cyan]pv init --smart[/cyan] first to auto-generate a [yellow].pvignore[/yellow] file for your project type.
+  • Always exclude large generated folders like [cyan].venv[/cyan], [cyan]node_modules[/cyan], or [cyan]target[/cyan].
 """
     )
     panel = Panel(
@@ -220,12 +229,14 @@ def vault_main():
     parser = argparse.ArgumentParser(prog="projectclone vault", description="Backup to content-addressable vault", formatter_class=RichHelpFormatter)
     parser.add_argument("source", nargs="?", default=".", help="The project directory to backup")
     parser.add_argument("vault_path", help="The destination directory for the vault")
+    parser.add_argument("--name", help="Set a custom project name for the snapshot")
+    parser.add_argument("--symlinks", action="store_true", help="preserve symlinks instead of copying targets")
     args = parser.parse_args(sys.argv[2:])
 
     try:
         source_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.source)))
         vault_path = os.path.abspath(os.path.expanduser(os.path.expandvars(args.vault_path)))
-        cas_engine.backup_to_vault(source_path, vault_path)
+        cas_engine.backup_to_vault(source_path, vault_path, project_name=args.name, follow_symlinks=not args.symlinks)
     except Exception as e:
         console.print(f"[error]Error: {e}[/error]")
         sys.exit(1)
@@ -244,6 +255,7 @@ def parse_args():
     p.add_argument("--manifest", action="store_true", help="write MANIFEST.txt (sizes only)")
     p.add_argument("--manifest-sha", action="store_true", help="compute per-file SHA256 (can be slow)")
     p.add_argument("--symlinks", action="store_true", help="preserve symlinks instead of copying targets")
+    p.add_argument("--exclude-symlinks", action="store_true", help="exclude symlinks from backup completely")
     p.add_argument("--keep", type=int, default=0, help="keep N newest backups for this project (0 = keep all)")
     p.add_argument("--yes", action="store_true", help="skip confirmation after space estimate")
     p.add_argument("--progress-interval", type=int, default=50, help="print progress every N files")
@@ -274,6 +286,7 @@ def parse_args():
 
 
 def main():
+    start_time = time.time()
     print_logo()
     if len(sys.argv) > 1 and sys.argv[1] == "vault":
         vault_main()
@@ -445,6 +458,8 @@ def main():
                     manifest=args.manifest,
                     manifest_sha=args.manifest_sha,
                     log_fp=log_fp,
+                    excludes=args.exclude,
+                    exclude_symlinks=args.exclude_symlinks,
                 )
 
                 # Move archive to final destination (with unique naming if necessary)
@@ -537,6 +552,35 @@ def main():
                 log_fp.write("Backup finished successfully\n")
             except Exception:
                 pass
+
+        # Summary
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        if final_output_path and final_output_path.exists():
+            size_str = "unknown size"
+            try:
+                if final_output_path.is_file():
+                    size = final_output_path.stat().st_size
+                    size_str = human_size(size)
+                elif final_output_path.is_dir():
+                    # Calculate dir size roughly for summary? Or just say directory.
+                    # Re-walking might be slow for huge dirs, but user asked for "final size".
+                    # Let's do a quick walk.
+                    total = 0
+                    for p in final_output_path.rglob('*'):
+                        if p.is_file():
+                            total += p.stat().st_size
+                    size_str = human_size(total)
+            except Exception:
+                pass
+            
+            summary = f"✨ Summary: {size_str} created in {duration:.2f}s"
+            print(summary)
+            if log_fp:
+                try:
+                    log_fp.write(f"{summary}\n")
+                except: pass
 
     except Exception as e:
         print("ERROR:", e)

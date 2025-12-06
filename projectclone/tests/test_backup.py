@@ -107,16 +107,17 @@ class TestAtomicMove:
 
 
 class TestArchive:
-    @patch('projectclone.backup.tarfile.TarFile.add')
-    def test_create_archive(self, mock_add, temp_dir, temp_dest, mock_log_fp):
-        mock_add.return_value = None
+    def test_create_archive(self, temp_dir, temp_dest, mock_log_fp):
         tmp_file = temp_dest / "test"
         arc = create_archive(temp_dir, tmp_file, log_fp=mock_log_fp)
         assert arc.exists()
         assert arc.name.endswith('.tar.gz')  # Full extension check
-        # Extract and verify contents (mocked, but path exists)
+        # Extract and verify contents
         with tarfile.open(arc) as tar:
-            assert len(tar.getnames()) == 0  # Mocked add, no contents
+            names = tar.getnames()
+            assert len(names) > 0
+            assert any("file1.txt" in n for n in names)
+        
         # Manifest/SHA
         arc_sha = create_archive(temp_dir, tmp_file, manifest=True, manifest_sha=True, log_fp=mock_log_fp)
         sha_fp = arc_sha.with_name(arc_sha.name + ".sha256")
@@ -127,26 +128,34 @@ class TestArchive:
             computed = sha256_of_file(arc_sha)
             assert sha_line.startswith(computed)
 
-    @patch('projectclone.backup.tarfile.TarFile.add')
-    def test_create_archive_file_input(self, mock_add, tmp_path, temp_dest):
-        mock_add.return_value = None
+    def test_create_archive_file_input(self, tmp_path, temp_dest):
         single_file = tmp_path / "single.txt"
         single_file.write_text("content")
         arc = create_archive(single_file, temp_dest / "single")
         assert arc.name.endswith('.tar.gz')
+        with tarfile.open(arc) as tar:
+            assert len(tar.getnames()) == 1
 
-    @patch('projectclone.backup.tarfile.TarFile.add')
-    def test_create_archive_preserves_symlink(self, mock_add, temp_dir, temp_dest):
-        mock_add.return_value = None
+    def test_create_archive_preserves_symlink(self, temp_dir, temp_dest):
         if not (temp_dir / "link_to_file1").exists():
             pytest.skip("Symlinks not supported")
         tmp_file = temp_dest / "sym.tar.gz"
         arc = create_archive(temp_dir, tmp_file, preserve_symlinks=True)
         assert arc.name.endswith('.tar.gz')
+        with tarfile.open(arc) as tar:
+            # Verify link is preserved
+            # Note: tarfile stores relative paths.
+            # temp_dir name is "source"
+            link_name = "source/link_to_file1"
+            try:
+                info = tar.getmember(link_name)
+                assert info.issym()
+            except KeyError:
+                # Fallback check if name is different
+                names = tar.getnames()
+                assert any("link_to_file1" in n for n in names)
 
-    @patch('projectclone.backup.tarfile.TarFile.add')
-    def test_archive_and_sha_move_to_final(self, mock_add, tmp_path):
-        mock_add.return_value = None
+    def test_archive_and_sha_move_to_final(self, tmp_path):
         src = tmp_path / "src"
         src.mkdir()
         (src / "file.txt").write_text("data")
@@ -166,9 +175,7 @@ class TestArchive:
         assert not arc.exists()
         assert not sha_src.exists()
 
-    @patch('projectclone.backup.tarfile.TarFile.add')
-    def test_archive_move_fallback_integration(self, mock_add, tmp_path, monkeypatch):
-        mock_add.return_value = None
+    def test_archive_move_fallback_integration(self, tmp_path, monkeypatch):
         src = tmp_path / "src"
         src.mkdir()
         (src / "f.txt").write_text("1")
