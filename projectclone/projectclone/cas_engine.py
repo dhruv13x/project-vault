@@ -39,21 +39,34 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
         print("❌ SAFETY ERROR: Source and Vault paths cannot be the same.")
         raise ValueError("Source and Vault paths cannot be the same.")
 
+    # Prepare Ignore Patterns
+    # Default ignores (system files)
+    ignore_patterns = ['.git', '__pycache__', '.DS_Store']
+    # Note: We do NOT ignore .pvignore or .vaultignore themselves, they should be backed up.
+
+    # Load user ignores
+    pvignore_path = os.path.join(source_path, ".pvignore")
+    vaultignore_path = os.path.join(source_path, ".vaultignore")
+
+    if os.path.exists(pvignore_path):
+        ignore_patterns.extend(ignore.parse_ignore_file(pvignore_path))
+    if os.path.exists(vaultignore_path):
+        ignore_patterns.extend(ignore.parse_ignore_file(vaultignore_path))
+
+    # Create PathSpec once
+    spec = ignore.PathSpec.from_lines(ignore_patterns)
+
     # Check 2: Nesting (Vault inside Source)
     if abs_vault.startswith(abs_source) and (
         len(abs_vault) == len(abs_source) or abs_vault[len(abs_source)] == os.sep
     ):
-        ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore']
-        vaultignore_path = os.path.join(source_path, ".vaultignore")
-        if os.path.exists(vaultignore_path):
-            ignore_patterns.extend(ignore.parse_ignore_file(vaultignore_path))
-            
-        if not ignore.should_ignore(abs_vault, ignore_patterns, abs_source):
+        rel_vault = os.path.relpath(abs_vault, abs_source)
+        if not spec.match_file(rel_vault, is_dir=True):
              print("❌ SAFETY ERROR: Vault path is inside Source path but not ignored.")
              print("   This causes infinite recursion (backing up the backup).")
              print(f"   Source: {abs_source}")
              print(f"   Vault:  {abs_vault}")
-             print("   Fix: Add the vault directory to .vaultignore or move the vault outside.")
+             print("   Fix: Add the vault directory to .pvignore or move the vault outside.")
              raise ValueError("Vault path is inside Source path but not ignored.")
 
     # --- Project Name Handling ---
@@ -71,45 +84,48 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
     
     objects_dir = os.path.join(vault_path, "objects")
     snapshots_dir = os.path.join(vault_path, "snapshots")
-    
-    # Load ignore patterns
-    ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore']
-    vaultignore_path = os.path.join(source_path, ".vaultignore")
-    if os.path.exists(vaultignore_path):
-        ignore_patterns.extend(ignore.parse_ignore_file(vaultignore_path))
 
     print(f"Starting backup of '{source_path}' to '{vault_path}'...")
 
     # Walk through the source directory
     for root, dirs, files in os.walk(source_path):
+        # Calculate relative path for directory check
+        rel_root = os.path.relpath(root, source_path)
+        if rel_root == ".":
+            rel_root = ""
+
         # Prune ignored directories
         for i in range(len(dirs) - 1, -1, -1):
             d = dirs[i]
-            dir_full_path = os.path.join(root, d)
-            if ignore.should_ignore(dir_full_path, ignore_patterns, source_path):
-                print(f"Skipped directory: {os.path.relpath(dir_full_path, source_path)}")
+            # Path relative to source root
+            dir_rel = os.path.join(rel_root, d) if rel_root else d
+
+            if spec.match_file(dir_rel, is_dir=True):
+                print(f"Skipped directory: {dir_rel}")
                 del dirs[i]
 
         for file in files:
-            full_path = os.path.join(root, file)
-            if ignore.should_ignore(full_path, ignore_patterns, source_path):
-                print(f"Skipped file: {os.path.relpath(full_path, source_path)}")
+            file_rel = os.path.join(rel_root, file) if rel_root else file
+
+            if spec.match_file(file_rel, is_dir=False):
+                print(f"Skipped file: {file_rel}")
                 continue
 
-            rel_path = os.path.relpath(full_path, source_path)
+            full_path = os.path.join(root, file)
+
             try:
                 # Check for Symlink
                 if os.path.islink(full_path):
                     target_path = os.readlink(full_path)
                     lstat = os.lstat(full_path)
 
-                    snapshot_data["files"][rel_path] = {
+                    snapshot_data["files"][file_rel] = {
                         "type": "symlink",
                         "target": target_path,
                         "mode": lstat.st_mode,
                         "mtime": lstat.st_mtime
                     }
-                    print(f"Symlink: {rel_path} -> {target_path}")
+                    print(f"Symlink: {file_rel} -> {target_path}")
                 else:
                     # Capture Metadata
                     stat = os.stat(full_path)
@@ -118,16 +134,16 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
                     file_hash = cas.store_object(full_path, objects_dir)
 
                     # Record Entry (Version 2 Format)
-                    snapshot_data["files"][rel_path] = {
+                    snapshot_data["files"][file_rel] = {
                         "hash": file_hash,
                         "mode": stat.st_mode,
                         "mtime": stat.st_mtime,
                         "size": stat.st_size
                     }
 
-                    print(f"Hashed: {rel_path} -> {file_hash}")
+                    print(f"Hashed: {file_rel} -> {file_hash}")
             except Exception as e:
-                print(f"Error processing {rel_path}: {e}")
+                print(f"Error processing {file_rel}: {e}")
                 raise
 
     # Save the manifest

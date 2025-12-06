@@ -1,19 +1,129 @@
 # src/common/ignore.py
 
 import fnmatch
+import re
 import os
-from typing import List
+from typing import List, Pattern, Tuple, Optional
+
+class PathSpec:
+    def __init__(self, patterns: List[Tuple[Pattern, bool, bool]]):
+        # List of (regex, is_negated, dir_only)
+        self.patterns = patterns
+
+    @classmethod
+    def from_lines(cls, lines: List[str]) -> 'PathSpec':
+        patterns = []
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            is_negated = line.startswith('!')
+            if is_negated:
+                pattern = line[1:]
+            else:
+                pattern = line
+
+            dir_only = pattern.endswith('/')
+            if dir_only:
+                pattern = pattern[:-1]
+
+            regex = cls._glob_to_regex(pattern, dir_only)
+            patterns.append((re.compile(regex), is_negated, dir_only))
+
+        return cls(patterns)
+
+    @staticmethod
+    def _glob_to_regex(pattern: str, dir_only: bool) -> str:
+        # Check for anchors
+        anchored = pattern.startswith('/')
+        if anchored:
+            pattern = pattern[1:]
+
+        has_slash = '/' in pattern
+
+        # Build regex body
+        i = 0
+        n = len(pattern)
+        res = []
+        while i < n:
+            c = pattern[i]
+            i += 1
+            if c == '*':
+                if i < n and pattern[i] == '*':
+                    i += 1
+                    if i < n and pattern[i] == '/':
+                        i += 1
+                        res.append('(?:.*/)?') # **/ matches zero or more dirs
+                    else:
+                        res.append('.*') # ** matches anything
+                else:
+                    res.append('[^/]*') # * matches anything except separator
+            elif c == '?':
+                res.append('[^/]')
+            elif c == '[':
+                j = i
+                if j < n and pattern[j] == '!':
+                    j += 1
+                if j < n and pattern[j] == ']':
+                    j += 1
+                while j < n and pattern[j] != ']':
+                    j += 1
+                if j >= n:
+                    res.append('\\[')
+                else:
+                    stuff = pattern[i:j].replace('\\', '\\\\')
+                    i = j + 1
+                    if stuff.startswith('!'):
+                        stuff = '^' + stuff[1:]
+                    elif stuff.startswith('^'):
+                        stuff = '\\^' + stuff[1:]
+                    res.append(f'[{stuff}]')
+            elif c == '/':
+                res.append('/')
+            else:
+                res.append(re.escape(c))
+
+        regex_body = "".join(res)
+
+        # Base regex construction
+        if anchored or has_slash:
+             base = f"^{regex_body}"
+        else:
+             base = f"(?:^|/){regex_body}"
+
+        # If dir_only, we match ONLY if followed by / (or end of string if we append / to candidate)
+        if dir_only:
+            return f"{base}/(?:.*)?$"
+        else:
+            return f"{base}(?:/.*)?$"
+
+    def match_file(self, path: str, is_dir: bool = False) -> bool:
+        """
+        Check if the file matches the ignore patterns.
+        Returns True if ignored, False otherwise.
+        """
+        path = path.replace('\\', '/')
+
+        candidate = path
+        if is_dir:
+            candidate += '/'
+
+        ignored = False
+
+        for regex, is_negated, dir_only in self.patterns:
+            if regex.search(candidate):
+                if is_negated:
+                    ignored = False
+                else:
+                    ignored = True
+
+        return ignored
 
 def parse_ignore_file(file_path: str) -> List[str]:
     """
     Parses a gitignore-style file and returns a list of ignore patterns.
-
-    Args:
-        file_path: The path to the ignore file (e.g., .gitignore).
-
-    Returns:
-        A list of valid ignore patterns. Returns an empty list if the file
-        cannot be read or does not exist.
+    Kept for backward compatibility but use PathSpec.from_lines usually.
     """
     patterns = []
     if not os.path.exists(file_path):
@@ -31,60 +141,18 @@ def parse_ignore_file(file_path: str) -> List[str]:
     
     return patterns
 
-
 def should_ignore(path: str, patterns: List[str], base_dir: str) -> bool:
     """
-    Determines if a given path should be ignored based on the provided patterns.
-
-    Args:
-        path: The absolute path of the file or directory to check.
-        patterns: A list of glob patterns (e.g., ["*.pyc", "node_modules/"]).
-        base_dir: The root directory of the project (used to calculate relative paths).
-
-    Returns:
-        True if the path matches any ignore pattern, False otherwise.
+    Legacy helper. Inefficient for loop use as it recompiles regexes.
+    Use PathSpec for bulk operations.
     """
+    spec = PathSpec.from_lines(patterns)
     rel_path = os.path.relpath(path, base_dir)
-    
-    # Normalizing path separators for consistent matching
-    rel_path = rel_path.replace(os.sep, '/')
-
-    # If we are checking the base_dir itself, don't ignore it unless explicitly told to
     if rel_path == ".":
         return False
 
-    for pattern in patterns:
-        # Handling directory-specific patterns (ending with /)
-        if pattern.endswith("/"):
-            # If pattern expects a directory, but our path isn't one or doesn't match, skip
-            # Note: checking os.path.isdir might be slow if doing this for many files.
-            # Often, ignoring "dir/" implies ignoring "dir" and everything under it.
-            
-            clean_pattern = pattern.rstrip("/")
-            
-            # 1. Check if the directory itself matches (dist/ matches dist)
-            if fnmatch.fnmatch(rel_path, clean_pattern):
-                return True
-            
-            # 2. Check if the file is inside the ignored directory (dist/ matches dist/file.txt)
-            if rel_path.startswith(clean_pattern + "/"):
-                return True
-        else:
-            # Standard file matching
-            if fnmatch.fnmatch(rel_path, pattern):
-                return True
-            
-            # Check if the file is inside a directory that matches the pattern
-            # (e.g. pattern "build" should match "build/output.txt")
-            # This is a simplification; precise gitignore logic is complex, 
-            # but this covers the "ignore folder content" case.
-            if rel_path.startswith(pattern + "/"):
-                return True
-                
-            # Handle "name" matching anywhere in path if no slash in pattern
-            # (e.g. "*.pyc" matches "src/foo.pyc")
-            if "/" not in pattern:
-                if fnmatch.fnmatch(os.path.basename(rel_path), pattern):
-                    return True
+    is_dir = os.path.isdir(path) # This might be costly if called often!
+    # Callers should preferably pass is_dir if known.
+    # But for compatibility, we check.
 
-    return False
+    return spec.match_file(rel_path, is_dir=is_dir)
