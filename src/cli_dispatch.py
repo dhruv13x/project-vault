@@ -260,6 +260,33 @@ def handle_gc_command(args, defaults):
     from projectclone import gc_engine
     gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
 
+def handle_verify_clone_command(args, defaults):
+    from projectclone import verify_engine
+
+    original = resolve_path(args.original_path)
+    clone = resolve_path(args.clone_path)
+
+    if not os.path.exists(original):
+        console.print(f"[error]Error: Original path '{original}' does not exist.[/error]")
+        sys.exit(1)
+    if not os.path.exists(clone):
+        console.print(f"[error]Error: Clone path '{clone}' does not exist.[/error]")
+        sys.exit(1)
+
+    console.print(f"[info]Verifying clone...[/info]")
+    console.print(f"  Original: [cyan]{original}[/cyan]")
+    console.print(f"  Clone:    [cyan]{clone}[/cyan]")
+
+    result = verify_engine.verify_directories(original, clone)
+
+    if result.success:
+        console.print(Panel("[bold green]Verification Successful: Capsule is perfect.[/bold green]", border_style="green"))
+    else:
+        console.print(Panel(f"[bold red]Verification Failed: {len(result.errors)} errors found[/bold red]", border_style="red"))
+        for error in result.errors:
+             console.print(f"  [red]• {error}[/red]")
+        sys.exit(1)
+
 def handle_config_command(args):
     if args.config_command == "set-creds":
         pv_path = "pv.toml"

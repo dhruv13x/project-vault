@@ -20,13 +20,15 @@ from src.cli_help import (
     RichVaultRestoreHelpAction,
     RichPushHelpAction,
     RichPullHelpAction,
-    RichListHelpAction
+    RichListHelpAction,
+    RichVerifyCloneHelpAction
 )
 
 # Import command handlers from new dispatch module
 from src.cli_dispatch import (
     handle_vault_command,
     handle_vault_restore_command,
+    handle_verify_clone_command,
     handle_init_command,
     handle_status_command,
     handle_diff_command,
@@ -216,6 +218,29 @@ def _real_main():
     vault_restore_parser.add_argument("manifest", help="Path to manifest.json")
     vault_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"))
 
+    # --- Verify Clone Command ---
+    verify_clone_parser = subparsers.add_parser("verify-clone", add_help=False)
+    verify_clone_parser.add_argument("-h", "--help", action=RichVerifyCloneHelpAction)
+    verify_clone_parser.add_argument("original_path", help="Original source directory")
+    verify_clone_parser.add_argument("clone_path", help="Restored directory to verify")
+
+    # --- Capsule Command (Alias Wrapper) ---
+    capsule_parser = subparsers.add_parser("capsule", help="Manage project capsules (snapshots)", formatter_class=RichHelpFormatter)
+    capsule_subparsers = capsule_parser.add_subparsers(dest="capsule_command", title="Capsule Actions")
+
+    # pv capsule create -> pv vault
+    capsule_create_parser = capsule_subparsers.add_parser("create", add_help=False)
+    capsule_create_parser.add_argument("-h", "--help", action=RichVaultHelpAction)
+    capsule_create_parser.add_argument("source", nargs="?", default=".")
+    capsule_create_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
+    capsule_create_parser.add_argument("--name", help="Project name")
+
+    # pv capsule restore -> pv vault-restore
+    capsule_restore_parser = capsule_subparsers.add_parser("restore", add_help=False)
+    capsule_restore_parser.add_argument("-h", "--help", action=RichVaultRestoreHelpAction)
+    capsule_restore_parser.add_argument("manifest", help="Path to manifest.json")
+    capsule_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"))
+
     # --- Push Command ---
     push_parser = subparsers.add_parser("push", add_help=False)
     push_parser.add_argument("-h", "--help", action=RichPushHelpAction)
@@ -315,6 +340,20 @@ def _real_main():
 
     elif args.command == "vault-restore":
         handle_vault_restore_command(args, defaults)
+
+    elif args.command == "verify-clone":
+        handle_verify_clone_command(args, defaults)
+
+    elif args.command == "capsule":
+        if args.capsule_command == "create":
+            # Map to vault command handler
+            handle_vault_command(args, defaults, notifier)
+        elif args.capsule_command == "restore":
+            # Map to vault-restore command handler
+            handle_vault_restore_command(args, defaults)
+        else:
+             from src.cli_help import print_capsule_help
+             print_capsule_help()
 
     elif args.command == "init":
         handle_init_command(args)

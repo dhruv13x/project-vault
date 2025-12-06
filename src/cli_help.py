@@ -30,6 +30,33 @@ Restores a project from a snapshot's [yellow]manifest.json[/] file to the [yello
   [yellow]-h, --help[/]        Show this help message.
 """), title="[bold]Help: `pv vault-restore`[/]", border_style="blue"))
 
+def print_capsule_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv capsule[/] [yellow]<subcommand>[/] [magenta][<args>...][/]
+
+Manage project capsules (snapshots).
+
+[bold]Subcommands:[/bold]
+  [cyan]create[/cyan]          Create a new capsule (alias for `pv vault`).
+  [cyan]restore[/cyan]         Restore a capsule (alias for `pv vault-restore`).
+
+[bold]Arguments:[/bold]
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv capsule`[/]", border_style="blue"))
+
+def print_verify_clone_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv verify-clone[/] [yellow]<original_path> <clone_path>[/]
+
+Walks both directory trees and verifies bit-identical content.
+Proves that the capsule restoration was perfect.
+
+[bold]Arguments:[/bold]
+  [yellow]original_path[/]    The original source directory.
+  [yellow]clone_path[/]       The restored (cloned) directory.
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv verify-clone`[/]", border_style="blue"))
+
 def print_push_help():
     console.print(Panel(Text.from_markup("""
 [bold green]Usage:[/] [cyan]pv push[/] [yellow][vault_path][/] [magenta][--bucket <B>] [--endpoint <E>] [--dry-run][/]
@@ -81,23 +108,25 @@ def print_main_help():
 [bold green]Core Commands[/bold green]
   [cyan]backup[/cyan]          Create a new backup of a project (legacy file-based).
   [cyan]archive-restore[/cyan] Restore a project from a legacy file-based backup.
-  [cyan]vault[/cyan]          Create a new content-addressable snapshot of a project.
-  [cyan]vault-restore[/cyan]  Restore a project from a vault snapshot.
+  [cyan]vault[/cyan]           Create a new content-addressable snapshot of a project.
+  [cyan]vault-restore[/cyan]   Restore a project from a vault snapshot.
+  [cyan]capsule[/cyan]         Alias for vault operations (create/restore).
+  [cyan]verify-clone[/cyan]    Verify that a restored project is identical to the source.
 
 [bold green]Cloud Commands[/bold green]
-  [cyan]push[/cyan]           Push vault contents to cloud storage (S3/B2).
-  [cyan]pull[/cyan]           Pull vault contents from cloud storage.
-  [cyan]list --cloud[/cyan]   List snapshots available in the cloud.
+  [cyan]push[/cyan]            Push vault contents to cloud storage (S3/B2).
+  [cyan]pull[/cyan]            Pull vault contents from cloud storage.
+  [cyan]list --cloud[/cyan]    List snapshots available in the cloud.
 
 [bold green]Local & Maintenance Commands[/bold green]
-  [cyan]status[/cyan]         Show workspace and vault status vs last snapshot.
-  [cyan]list[/cyan]           List local snapshots.
-  [cyan]diff[/cyan]           Show changes between workspace and a file in the snapshot.
-  [cyan]checkout[/cyan]      Restore a specific file from the last snapshot.
-  [cyan]gc[/cyan]             Clean up orphaned objects from the vault.
+  [cyan]status[/cyan]          Show workspace and vault status vs last snapshot.
+  [cyan]list[/cyan]            List local snapshots.
+  [cyan]diff[/cyan]            Show changes between workspace and a file in the snapshot.
+  [cyan]checkout[/cyan]        Restore a specific file from the last snapshot.
+  [cyan]gc[/cyan]              Clean up orphaned objects from the vault.
   [cyan]check-integrity[/cyan] Verify the integrity of the local vault.
   [cyan]init[/cyan]            Create a default `pv.toml` configuration file.
-  [cyan]check-env[/cyan]      Verify cloud environment variables are set.
+  [cyan]check-env[/cyan]       Verify cloud environment variables are set.
 
 [bold green]Global Options[/bold green]
   [yellow]-h, --help[/yellow]      Show this help message and exit.
@@ -123,6 +152,14 @@ class RichVaultRestoreHelpAction(argparse.Action):
     def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
     def __call__(self, p, n, v, o=None): print_vault_restore_help(); p.exit()
 
+class RichCapsuleHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_capsule_help(); p.exit()
+
+class RichVerifyCloneHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_verify_clone_help(); p.exit()
+
 class RichPushHelpAction(argparse.Action):
     def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
     def __call__(self, p, n, v, o=None): print_push_help(); p.exit()
@@ -137,7 +174,7 @@ class RichListHelpAction(argparse.Action):
 
 class RichHelpAction(argparse.Action):
     """
-A custom argparse action to show a rich-formatted help panel and exit.
+    A custom argparse action to show a rich-formatted help panel and exit.
     """
     def __init__(self, option_strings, dest, **kwargs):
         super().__init__(option_strings, dest, nargs=0, **kwargs)

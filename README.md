@@ -83,6 +83,8 @@ For servers, CI/CD, or minimal environments, you can install the components inde
 *   **Notification Integration**: Test your notification setup with `pv notify-test`.
 *   **Doppler Secret Integration**: Automatically inject secrets from Doppler for secure cloud access.
 *   **Symlink Support**: Fully supports backing up and restoring symbolic links as first-class objects.
+*   **Clone Verification**: Verify that a restored project is bit-identical to the source with `pv verify-clone`.
+*   **Capsule Management**: Manage snapshots easily with `pv capsule create` and `pv capsule restore` aliases.
 
 ---
 
@@ -147,6 +149,8 @@ pv checkout src/main.py
 | `pv notify-test` | Send a test notification. |
 | `pv config set-creds` | Save credentials to `pv.toml` (requires manual security override). |
 | `pv init` | Create a default `pv.toml` configuration file. Use `--smart` to auto-detect project type and generate `.pvignore`. |
+| `pv verify-clone` | Verify that a restored project is bit-identical to the source. |
+| `pv capsule` | Manage capsules (aliases for vault operations). |
 | `pv backup` | (Legacy) Create a file-based backup. |
 | `pv archive-restore` | (Legacy) Restore a file-based backup. |
 
