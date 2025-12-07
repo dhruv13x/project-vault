@@ -1,252 +1,210 @@
+# Project Vault (pv) 🏦
+
+> **The Unified Project Lifecycle Manager: Backup, Restore, and Teleport Projects Anywhere.**
+
 <div align="center">
-  <img src="https://raw.githubusercontent.com/dhruv13x/project-vault/main/project-vault_logo.png" alt="project-vault logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/dhruv13x/project-vault/main/project-vault_logo.png" alt="Project Vault Logo" width="200"/>
 </div>
 
 <div align="center">
 
-<!-- Package Info -->
-[![PyPI version](https://img.shields.io/pypi/v/project-vault.svg)](https://pypi.org/project/project-vault/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-![Wheel](https://img.shields.io/pypi/wheel/project-vault.svg)
-[![Release](https://img.shields.io/badge/release-PyPI-blue)](https://pypi.org/project/project-vault/)
-
-<!-- Build & Quality -->
-[![Build status](https://github.com/dhruv13x/project-vault/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruv13x/project-vault/actions/workflows/publish.yml)
-[![Codecov](https://codecov.io/gh/dhruv13x/project-vault/graph/badge.svg)](https://codecov.io/gh/dhruv13x/project-vault)
-[![Test Coverage](https://img.shields.io/badge/coverage-90%25%2B-brightgreen.svg)](https://github.com/dhruv13x/project-vault/actions/workflows/test.yml)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Ruff](https://img.shields.io/badge/linting-ruff-yellow.svg)](https://github.com/astral-sh/ruff)
-![Security](https://img.shields.io/badge/security-CodeQL-blue.svg)
-
-<!-- Usage -->
-![Downloads](https://img.shields.io/pypi/dm/project-vault.svg)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/project-vault.svg)](https://pypistats.org/packages/project-vault)
-![OS](https://img.shields.io/badge/os-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)
-[![Python Versions](https://img.shields.io/pypi/pyversions/project-vault.svg)](https://pypi.org/project/project-vault/)
-
-<!-- License -->
+[![Build Status](https://img.shields.io/github/actions/workflow/status/dhruv13x/project-vault/test.yml?branch=main)](https://github.com/dhruv13x/project-vault/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/badge/linting-ruff-yellow.svg)](https://github.com/astral-sh/ruff)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/dhruv13x/project-vault/graphs/commit-activity)
 
 </div>
 
-
-# Project Vault (pv)
-
-**The Unified Project Lifecycle Manager.**  
-Teleport your entire project state—code, databases, caches, and environments—anywhere, safely.
+**Project Vault (pv)** is your command-line companion for managing project state. It combines the power of atomic backups, cloud synchronization, and time-travel restoration into a single, unified tool. Think of it as **Time Machine for your dev projects** — portable, reproducible, and cloud-ready.
 
 ---
 
-## 🚀 The Core Vision
+## ⚡ Quick Start (The "5-Minute Rule")
 
-Project Vault (`pv`) creates **100% identical project capsules**. It captures the "messy reality" of a working project that Git ignores: local databases, `node_modules`, `.env` files, compiled binaries, and temp directories.
+### Prerequisites
+-   **Python 3.10+**
+-   **Pip**
 
-If you restore a `pv` snapshot on a new machine and run `diff -r`, you will see **zero differences**.
-
-**Use Cases:**
-*   **Teleport:** Move a running workspace from Laptop → Server in seconds.
-*   **Share:** Send a self-contained `.pvc` capsule to a colleague.
-*   **Resurrect:** Restore a dead environment exactly as it was 3 months ago.
-*   **Debug:** Snapshot a bug state (including the DB) and analyze it later.
-
----
-
-## 📦 Installation
-
-### The Full Suite (Recommended)
-Install the unified tool to get backup, restore, and cloud synchronization features.
+### Installation
 
 ```bash
+# Install via pip (recommended)
 pip install project-vault
+
+# Or for the latest dev version
+git clone https://github.com/dhruv13x/project-vault
+cd project-vault
+pip install .
 ```
 
-This installs the `pv` command, which includes:
-*   **`projectclone`**: The core snapshot engine.
-*   **`projectrestore`**: The safety-critical restoration tool.
-*   **`textual`**: For the interactive TUI.
-*   **`zstandard`**: For high-performance compression.
+### Run
 
-### Standalone Tools (Advanced)
-For servers, CI/CD, or minimal environments, you can install the components independently:
+Verify the installation:
 
-*   **Backup Only:** `pip install projectclone` (No cloud deps)
-*   **Restore Only:** `pip install projectrestore` (Zero dependencies, ultra-lightweight)
-
----
-
-## ✨ Key Features
-
-*   **Interactive Time Machine**: **(God Level)** Browse, view, and restore files from any snapshot in a terminal-based UI (`pv browse`).
-*   **Bit-Identical Verification**: **(God Level)** Verify that a restored project is byte-for-byte identical to the source with `pv verify-clone`.
-*   **Capsule Portability**: Export snapshots to single `.pvc` files for sharing via email/USB with `pv capsule export`.
-*   **Smart Initialization**: Auto-detects project type (Python, Node, Rust, etc.) and generates optimal ignore patterns with `pv init --smart`.
-*   **Cloud Agnostic Sync**: Push/pull encrypted, deduplicated snapshots to AWS S3, Backblaze B2, or any S3-compatible storage.
-*   **Content-Addressable Storage**: Every file is stored once, saving space and ensuring data integrity.
-*   **Vault Garbage Collection**: Clean up orphaned data blocks from the vault with the `pv gc` command.
-*   **Integrity Checks**: Verify the health of your local vault and detect corruption with `pv check-integrity`.
-*   **Lifecycle Hooks**: Execute pre/post-backup and pre/post-restore shell commands for seamless integration.
-*   **Doppler Secret Integration**: Automatically inject secrets from Doppler for secure cloud access.
-
----
-
-## ⚡ Quick Start
-
-### 1. Initialize
-Run this in your project root. The `--smart` flag auto-detects your language and creates a `.pvignore`.
 ```bash
+pv --version
+```
+
+### Demo
+
+Create a snapshot of your current project and list it:
+
+```bash
+# 1. Initialize (optional, for auto-ignore)
 pv init --smart
-```
 
-### 2. Create a Snapshot
-Capture the current state of your project into the local vault.
-```bash
-pv vault
-```
+# 2. Create a local snapshot
+pv vault . --name "initial-commit"
 
-### 3. Check Status
-See what has changed in your workspace since the last snapshot.
-```bash
-pv status
-```
-
-### 4. Sync to Cloud (Optional)
-Push your encrypted, deduplicated snapshots to S3 or Backblaze B2.
-```bash
-pv push
-```
-
-### 5. Restore (Teleport)
-Bring the project back to life on any machine.
-```bash
-# Restore from a local snapshot
-pv vault-restore ./vault/snapshots/my-project/snapshot_latest.json ./restored_project
-
-# Import and restore a portable capsule
-pv capsule import my_project.pvc
-pv capsule restore ./vault/snapshots/my-project/snapshot_from_capsule.json
+# 3. List snapshots
+pv list
 ```
 
 ---
 
-## 🛠️ Commands
+## ✨ Features
 
-| Command | Description |
+### 🛡️ Core Reliability
+-   **Atomic Snapshots**: Never lose data due to a partial backup. Snapshots are verified and immutable.
+-   **Content Addressable Storage (CAS)**: Deduplication at the file level. Save space by storing unique files only once.
+-   **Symlink Support**: Preserves symlinks (or optionally follows them), ensuring complex project structures remain intact.
+
+### 🚀 Performance
+-   **ZStandard Compression**: High-speed, high-ratio compression for efficient storage and transfer.
+-   **Incremental Backups**: Only changed files are processed, making subsequent backups lightning fast.
+
+### ☁️ Cloud & Security
+-   **Cloud Sync (S3/B2)**: Push and pull your vaults to any S3-compatible storage.
+-   **Encrypted Configuration**: Securely handle credentials (optional integration).
+-   **Integrity Checks**: Verify the health of your local vault and cloud storage.
+
+### 🧩 Developer Experience
+-   **TUI (Textual UI)**: Browse snapshots and restore files using an interactive terminal interface (`pv browse`).
+-   **Smart Ignorance**: Auto-generates `.pvignore` based on project type (Python, Node, Rust, etc.).
+-   **Rich Output**: Beautiful, color-coded terminal output using `rich`.
+
+---
+
+## 🛠️ Configuration
+
+Project Vault can be configured via environment variables, a local `pv.toml`, or `pyproject.toml`.
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+| :--- | :--- | :--- | :--- |
+| `PV_BUCKET` | The default cloud bucket name. | None | No (unless pushing) |
+| `PV_ENDPOINT` | The S3-compatible endpoint URL. | None | No (unless pushing) |
+| `PV_VAULT_PATH` | Default local path to store the vault. | `~/.project-vault` | No |
+| `PV_RESTORE_PATH` | Default path to restore projects. | `./restored` | No |
+| `PV_TELEGRAM_BOT_TOKEN` | Telegram Bot Token for notifications. | None | No |
+| `PV_TELEGRAM_CHAT_ID` | Telegram Chat ID for notifications. | None | No |
+
+### CLI Arguments
+
+Common arguments for `pv vault` (create snapshot):
+
+| Flag | Description |
 | :--- | :--- |
-| `pv browse` | **(God Level)** Interactive TUI to browse, view, and restore from snapshots. |
-| `pv vault` | Create a content-addressable snapshot of the current directory. |
-| `pv vault-restore` | Full project restoration from a manifest. |
-| `pv capsule export` | Export a snapshot to a portable `.pvc` file. |
-| `pv capsule import` | Import a `.pvc` file into the local vault. |
-| `pv verify-clone` | **(God Level)** Verify a restored project is bit-identical to the source. |
-| `pv status` | Show modified files and cloud sync status. |
-| `pv init` | Create configuration. Use `--smart` for auto-ignore generation. |
-| `pv push` | Sync local vault to Cloud (S3/B2). |
-| `pv pull` | Download missing snapshots from Cloud. |
-| `pv list` | List all local or cloud snapshots. |
-| `pv diff` | Compare a local file against the latest snapshot. |
-| `pv checkout` | Restore a specific file from the latest snapshot. |
-| `pv gc` | Run garbage collection to clean up orphaned vault objects. |
-| `pv check-integrity`| Verify the health of the local vault (detect corruption). |
-| `pv check-env` | Check cloud credentials and dependencies. |
-| `pv notify-test` | Send a test notification. |
-| `pv config set-creds` | Save credentials to `pv.toml` (requires manual security override). |
+| `--name` | Tag the snapshot with a custom name. |
+| `--cloud` | Push to cloud immediately after creating. |
+| `--symlinks` | Preserve symlinks instead of copying targets. |
+| `--bucket` | Override configured bucket. |
+| `--endpoint` | Override configured endpoint. |
 
----
+Common arguments for `pv list`:
 
-## 🖥️ Interactive TUI (`pv browse`)
-
-For a "Time Machine"-like experience, run the `browse` command. This opens a Textual-based UI that lets you:
-
-*   Navigate all historical snapshots for a project.
-*   Expand snapshots to see the full file tree.
-*   View the contents of any file from a past version.
-*   Restore a single file by pressing `r`.
-
-```
-$ pv browse
-
-┌─ Snapshots: my-api ──────────────────────────────────────────┐
-│ ┌─ 20231125_120000 ────────────────────────────────────────── │
-│ │  📁 src/                                                   │
-│ │  │  📄 main.py                                             │
-│ │  │  📄 routes.py                                           │
-│ │  📄 .env                                                    │
-│ │  📄 README.md                                               │
-│ └─ 20231124_183000 ────────────────────────────────────────── │
-│    ...                                                       │
-└──────────────────────────────────────────────────────────────┘
-```
-
----
-
-## ⚙️ Configuration & Advanced Usage
-
-### Configuration File (`pv.toml`)
-Running `pv init` creates a `pv.toml` file for project-specific settings. You can also define these in your `pyproject.toml` under the `[tool.project-vault]` section.
-
-```toml
-[tool.project-vault]
-bucket = "my-backup-bucket"
-endpoint = "https://s3.us-east-1.amazonaws.com"
-vault_path = "./.pv/vault"
-```
-
-### Environment Variables & Precedence
-`pv` uses a clear hierarchy for resolving settings:
-
-1.  **Command-Line Flags**: `--bucket my-bucket` always wins.
-2.  **`PV_` Prefixed Env Vars**: `PV_BUCKET` overrides `BUCKET`.
-3.  **Doppler Secrets**: If `DOPPLER_TOKEN` is set, secrets are fetched automatically.
-4.  **Standard Env Vars**: `AWS_ACCESS_KEY_ID`, `B2_KEY_ID`, etc.
-5.  **Config File**: `pv.toml` or `pyproject.toml`.
-
-> **Security Note**: Use `PV_` prefixed variables or Doppler in CI/CD environments to avoid leaking general-purpose credentials.
-
-### Lifecycle Hooks
-Define shell commands in `pv.toml` to run at critical stages.
-
-```toml
-[tool.project-vault.hooks]
-pre-backup = "pg_dump my_db > backup.sql"
-post-restore = "psql my_db < backup.sql && rm backup.sql"
-```
+| Flag | Description |
+| :--- | :--- |
+| `--cloud` | List snapshots from the cloud instead of local. |
+| `--limit` | Number of snapshots to show (default: 10). |
 
 ---
 
 ## 🏗️ Architecture
 
-Project Vault is a **monorepo** containing three distinct tools:
+Project Vault follows a monorepo structure, orchestrating specialized engines for backup (`projectclone`) and restore (`projectrestore`).
+
+### Directory Tree
 
 ```text
-.
-├── src/                  # The 'pv' Orchestrator & CLI
-│   ├── cli.py            # Main entry point
-│   ├── tui.py            # Textual-based Time Machine
-│   └── common/           # Shared utilities (Capsule, Smart Init, etc.)
-├── projectclone/         # The Backup Engine
-│   └── src/
-│       ├── cas_engine.py # Content-Addressable Storage logic
-│       ├── verify_engine.py # Bit-identical verification
-│       └── gc_engine.py  # Garbage Collection
-└── projectrestore/       # The Restore Engine
-    └── src/
-        └── restore_engine.py # Safety-critical restoration logic
+project-vault/
+├── src/                    # Main CLI and Orchestration Logic
+│   ├── cli.py              # Entry Point (pv)
+│   ├── common/             # Shared Utilities (Config, Crypto, S3/B2)
+│   └── tui.py              # Textual User Interface
+├── projectclone/           # Backup Engine (Snapshot Creation)
+│   └── src/projectclone/   # Core Backup Logic
+└── projectrestore/         # Restore Engine (Snapshot Application)
+    └── src/projectrestore/ # Core Restore Logic
 ```
 
-1.  **`project-vault` (pv):** The orchestrator. Handles configuration, cloud sync, and user interaction.
-2.  **`projectclone`:** The backup engine. Handles hashing, deduplication, and manifest generation.
-3.  **`projectrestore`:** The restore engine. A standalone, dependency-free tool focused purely on safe data reconstruction.
+### Data Flow
+
+1.  **Input**: User runs `pv vault` in a project directory.
+2.  **Filter**: `src/common/ignore.py` applies `.pvignore` rules.
+3.  **Capture**: `projectclone` scans files, computes hashes, and stores unique objects in the CAS (Content Addressable Storage).
+4.  **Manifest**: A JSON manifest is created, linking file paths to CAS objects.
+5.  **Sync (Optional)**: `pv push` uploads new CAS objects and the manifest to the configured Cloud Storage (S3/B2).
+6.  **Restore**: `pv vault-restore` (or `projectrestore`) reads the manifest, fetches objects from CAS, and reconstructs the directory state.
+
+---
+
+## 🐞 Troubleshooting
+
+### Common Issues
+
+| Error Message | Possible Cause | Solution |
+| :--- | :--- | :--- |
+| `B2ConnectionError` / `403` | Invalid credentials or endpoint. | Check `pv.toml` or `PV_ENDPOINT`. Ensure keys are correct. |
+| `Snapshot not found` | Local vault is empty or path is wrong. | Run `pv list` to see available snapshots. Check `PV_VAULT_PATH`. |
+| `Permission denied` | Lack of write access to vault/restore path. | Ensure you have permissions for the directory. |
+
+### Debug Mode
+
+To enable verbose logging and see stack traces:
+
+```bash
+# Currently, use the verbose flags on sub-tools if available, or check logs.
+# For development, run with python directly:
+python3 src/cli.py [command]
+```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get started, report bugs, or suggest features.
+
+### Dev Setup
+
+1.  **Clone & Install**:
+    ```bash
+    git clone https://github.com/dhruv13x/project-vault
+    cd project-vault
+    pip install -e .[dev]
+    pip install -e ./projectclone
+    pip install -e ./projectrestore
+    ```
+
+2.  **Run Tests**:
+    ```bash
+    python3 -m pytest
+    ```
 
 ---
 
 ## 🗺️ Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the vision of **Project Teleportation**, **Smart Capsules**, and **Device Mesh**.
+- [ ] **Encryption**: Client-side encryption for zero-knowledge cloud backups.
+- [ ] **Daemon Mode**: Background watcher for auto-backups on file change.
+- [ ] **Web UI**: A lightweight web interface for browsing vaults remotely.
+- [ ] **Plugin System**: Hooks for custom pre/post backup actions (e.g., database dumps).
 
 ---
 
-## 🤝 Contributing & License
-
-Contributions are welcome! Please check out the issues and PRs.
-
-**License:** MIT License.
+<div align="center">
+  <sub>Built with ❤️ by <a href="https://github.com/dhruv13x">Dhruv13x</a></sub>
+</div>
