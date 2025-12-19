@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import re
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
@@ -42,7 +43,6 @@ def get_local_status(source_path: str, vault_path: str, project_name: str = None
     if project_name is None:
         project_name = os.path.basename(abs_source)
         # Sanitize as per cas_engine
-        import re
         project_name = re.sub(r'[^a-zA-Z0-9_-]', '_', project_name)
 
     # 1. Find Latest Snapshot
@@ -170,8 +170,10 @@ def get_cloud_status(vault_path: str, bucket: str, endpoint: str, key_id: str, a
         status["local_count"] = len(local_snapshots)
         
         # Diff
-        status["to_push"] = len(local_snapshots - cloud_snapshots)
-        status["to_pull"] = len(cloud_snapshots - local_snapshots)
+        status["local_only"] = local_snapshots - cloud_snapshots
+        status["cloud_only"] = cloud_snapshots - local_snapshots
+        status["to_push"] = len(status["local_only"])
+        status["to_pull"] = len(status["cloud_only"])
         status["synced"] = (status["to_push"] == 0 and status["to_pull"] == 0)
 
     except Exception as e:
@@ -306,9 +308,63 @@ def show_status(source_path, vault_path, cloud_config=None):
                 console.print(f"Target: [cyan]{cloud_config['bucket']}[/cyan]")
                 
                 if cloud_stat["synced"]:
-                    console.print("[bold green]✔ Synced with Cloud[/bold green]")
+                    console.print("✅ [bold green]Local vault is fully synchronized with cloud.[/bold green]")
                 else:
+                    # Use a table or list showing which snapshots need pushing/pulling.
                     if cloud_stat["to_push"] > 0:
                         console.print(f"[yellow]⚠ Local is ahead by {cloud_stat['to_push']} snapshots (Run 'pv push')[/yellow]")
                     if cloud_stat["to_pull"] > 0:
                         console.print(f"[yellow]⚠ Remote is ahead by {cloud_stat['to_pull']} snapshots (Run 'pv pull')[/yellow]")
+
+                    # Detailed Table
+                    table = Table(show_header=True, header_style="bold white", title="Sync Differences")
+                    table.add_column("Action", width=12)
+                    table.add_column("Snapshot")
+
+                    max_rows = 15
+                    count = 0
+
+                    # Sort for consistent display
+                    local_only = sorted(list(cloud_stat.get("local_only", [])))
+                    cloud_only = sorted(list(cloud_stat.get("cloud_only", [])))
+
+                    for f in local_only:
+                        if count >= max_rows: break
+                        table.add_row("[green]Push (Local)[/green]", f)
+                        count += 1
+
+                    for f in cloud_only:
+                        if count >= max_rows: break
+                        table.add_row("[blue]Pull (Remote)[/blue]", f)
+                        count += 1
+
+                    console.print(table)
+                    if (len(local_only) + len(cloud_only)) > max_rows:
+                        console.print(f"[dim]...and more.[/dim]")
+
+                # Warning if the latest local snapshot is not in the cloud
+                # We need to find the latest local snapshot first.
+                # get_local_status does finding latest snapshot but we don't return the filename there easily.
+                # But here we have the vault_path.
+                # We can check if the latest snapshot for the current project is in "local_only".
+
+                # Infer project name from source path or vault structure?
+                # Usually vault is organized by project.
+                # But here we might be checking status of a specific project workspace.
+                # get_local_status derived project_name from source_path.
+                # Let's derive it again here to check.
+
+                project_name = os.path.basename(os.path.abspath(source_path))
+                # Sanitize as per cas_engine
+                project_name = re.sub(r'[^a-zA-Z0-9_-]', '_', project_name)
+
+                latest = _get_latest_snapshot(vault_path, project_name)
+                if latest:
+                    # "snapshots/project_name/timestamp.json"
+                    rel_path = os.path.relpath(latest, os.path.join(vault_path, "snapshots"))
+                    key = f"snapshots/{rel_path}".replace(os.sep, "/")
+
+                    # cloud_stat["local_only"] contains keys that are NOT in cloud.
+                    if key in cloud_stat.get("local_only", set()):
+                         console.print(f"[bold red]🚨 Warning: The latest snapshot ({os.path.basename(key)}) is NOT in the cloud![/bold red]")
+                         console.print("   Your latest work is not protected off-site. Run [bold white]pv push[/bold white] immediately.")

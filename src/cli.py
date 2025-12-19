@@ -359,6 +359,7 @@ def _real_main():
     status_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Path to local vault")
     status_parser.add_argument("--bucket", default=defaults.get("bucket"), help="Target Cloud Bucket")
     status_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="Cloud Endpoint")
+    status_parser.add_argument("--cloud", action="store_true", help="Check cloud synchronization status")
 
     # --- Diff Command ---
     diff_parser = subparsers.add_parser("diff", help="Show changes between workspace and snapshot", formatter_class=RichHelpFormatter)
