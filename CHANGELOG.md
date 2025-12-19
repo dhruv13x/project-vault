@@ -1,5 +1,9 @@
 # Changelog
 
+## [7.0.0] - 2025-12-19
+### Other Changes
+- update
+
 ## [6.0.1] - 2025-12-19
 ### Other Changes
 - remove flaky docker integration test to unblock CI
