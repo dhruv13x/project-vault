@@ -36,7 +36,7 @@ class TestIntegrationDB(unittest.TestCase):
                 "-e", f"POSTGRES_PASSWORD={cls.db_password}",
                 "-e", f"POSTGRES_DB={cls.db_name}",
                 "-p", f"{cls.port}:5432",
-                "-d", "postgres:alpine"
+                "-d", "postgres:15-alpine"
             ], check=True, stdout=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             # Cleanup if it failed (maybe exists)
@@ -47,7 +47,7 @@ class TestIntegrationDB(unittest.TestCase):
                 "-e", f"POSTGRES_PASSWORD={cls.db_password}",
                 "-e", f"POSTGRES_DB={cls.db_name}",
                 "-p", f"{cls.port}:5432",
-                "-d", "postgres:alpine"
+                "-d", "postgres:15-alpine"
             ], check=True, stdout=subprocess.DEVNULL)
 
         # Wait for DB to be ready

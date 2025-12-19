@@ -200,12 +200,14 @@ class TestMainCli:
     def test_vault_command_calls_cas_engine(self, mock_sys_exit, mock_cas_engine, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path']
         main()
+        # Verify backup_to_vault call. Note that cli_dispatch.py calls it with resolved paths.
         mock_cas_engine.backup_to_vault.assert_called_once_with(
             os.path.abspath('my_source'),
             os.path.abspath('/my_vault_path'),
             project_name='my_source',
             hooks={},
-            follow_symlinks=True
+            follow_symlinks=True,
+            db_manifest=None
         )
         mock_sys_exit.assert_not_called()
 
@@ -217,7 +219,8 @@ class TestMainCli:
             os.path.abspath('/my_vault_path'),
             project_name='custom_name',
             hooks={},
-            follow_symlinks=True
+            follow_symlinks=True,
+            db_manifest=None
         )
         mock_sys_exit.assert_not_called()
 

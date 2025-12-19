@@ -5,7 +5,7 @@ import os
 from src.common import cas, manifest, ignore
 
 
-def backup_to_vault(source_path: str, vault_path: str, project_name: str = None, hooks: dict = None, follow_symlinks: bool = False) -> str:
+def backup_to_vault(source_path: str, vault_path: str, project_name: str = None, hooks: dict = None, follow_symlinks: bool = False, db_manifest: str = None) -> str:
     """
     Performs a content-addressable backup of the source path to the vault.
 
@@ -14,10 +14,12 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
         vault_path: The root directory of the backup vault.
         project_name: The name of the project. If None, it is derived from the source path.
         hooks: Dictionary containing lifecycle hooks (pre_snapshot, post_snapshot).
+        db_manifest: (Optional) Hash or reference to a database snapshot manifest.
 
     Returns:
         The absolute path to the saved manifest file.
     """
+    # ...
     # Import hooks helper
     try:
         from src.common.hooks import run_hook
@@ -81,6 +83,8 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
 
     # Initialize the snapshot structure (Version 2)
     snapshot_data = manifest.create_snapshot_structure(source_path)
+    if db_manifest:
+        snapshot_data["db_manifest"] = db_manifest
     
     objects_dir = os.path.join(vault_path, "objects")
     snapshots_dir = os.path.join(vault_path, "snapshots")

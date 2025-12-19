@@ -57,6 +57,10 @@ def generate_init_file(target_path: str = "pv.toml"):
     """
     template = """# Project Vault Configuration (pv.toml)
 
+[core]
+# Set to false to disable database marker detection suggestions
+enable_suggestions = true
+
 # --- Cloud Settings ---
 # The name of your B2/S3 Bucket
 bucket = "my-project-backups"

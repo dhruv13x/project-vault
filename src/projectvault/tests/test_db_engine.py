@@ -55,13 +55,13 @@ class TestDatabaseEngine(unittest.TestCase):
         mock_backup_to_vault.return_value = "/vault/snapshots/manifest.json"
 
         # Mock manifest modification
-        with patch("builtins.open", unittest.mock.mock_open(read_data='{"files": {}}')) as mock_file_open:
+        with patch("src.projectvault.engines.db_engine.open", unittest.mock.mock_open(read_data='{"files": {}}')) as mock_file_open:
             manifest_path = self.engine.backup("/vault", "test_project")
 
         self.assertEqual(manifest_path, "/vault/snapshots/manifest.json")
 
         # Verify subprocess called correctly
-        mock_popen.assert_called_with(ANY, stdout=subprocess.PIPE, stderr=ANY, env=ANY)
+        mock_popen.assert_called_with(ANY, stdout=subprocess.PIPE, stderr=ANY, env=ANY, bufsize=-1)
 
         # Verify cas_engine called
         mock_backup_to_vault.assert_called_once()
@@ -88,7 +88,7 @@ class TestDatabaseEngine(unittest.TestCase):
         credentials_module = MagicMock()
         credentials_module.resolve_credentials.return_value = ("key", "secret", "source")
 
-        with patch("builtins.open", unittest.mock.mock_open(read_data='{"files": {}}')):
+        with patch("src.projectvault.engines.db_engine.open", unittest.mock.mock_open(read_data='{"files": {}}')):
             self.engine.backup("/vault", "test_project", cloud_sync=True, credentials_module=credentials_module, bucket="mybucket")
 
         mock_sync.assert_called_once()
@@ -110,7 +110,7 @@ class TestDatabaseEngine(unittest.TestCase):
     @patch("projectrestore.restore_engine.restore_snapshot")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
-    @patch("builtins.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
+    @patch("src.projectvault.engines.db_engine.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
     @patch("subprocess.Popen")
     def test_restore(self, mock_popen, mock_open, mock_walk, mock_temp_dir, mock_restore_snapshot, mock_run):
          # Setup mocks
@@ -140,7 +140,7 @@ class TestDatabaseEngine(unittest.TestCase):
     @patch("projectrestore.restore_engine.restore_snapshot")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
-    @patch("builtins.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
+    @patch("src.projectvault.engines.db_engine.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
     @patch("subprocess.Popen")
     def test_restore_compressed(self, mock_popen, mock_open, mock_walk, mock_temp_dir, mock_restore_snapshot, mock_run):
         # Setup mocks
@@ -155,17 +155,19 @@ class TestDatabaseEngine(unittest.TestCase):
         mock_process = MagicMock()
         mock_process.communicate.return_value = (b"", b"")
         mock_process.returncode = 0
+        mock_process.stdout.close.return_value = None
         mock_popen.return_value = mock_process
 
-        with patch("gzip.open") as mock_gzip_open:
-            self.engine.restore("/vault/snapshots/manifest.json", "/vault")
-            mock_gzip_open.assert_called_once()
+        self.engine.restore("/vault/snapshots/manifest.json", "/vault")
+
+        # Verify three Popen calls (gzip -dc, sed filter, and psql)
+        self.assertEqual(mock_popen.call_count, 3)
 
     @patch("src.projectvault.engines.db_engine.subprocess.run")
     @patch("projectrestore.restore_engine.restore_snapshot")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
-    @patch("builtins.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
+    @patch("src.projectvault.engines.db_engine.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
     @patch("subprocess.Popen")
     def test_restore_force(self, mock_popen, mock_open, mock_walk, mock_temp_dir, mock_restore_snapshot, mock_run):
         mock_run.return_value.returncode = 0

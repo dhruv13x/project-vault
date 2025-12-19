@@ -308,21 +308,30 @@ class DatabaseEngine:
             restore_cmd = self.driver.get_restore_command(self.config)
 
             # Handle decompression if needed
-            import gzip
-
             try:
                 if is_compressed:
-                     # Stream from gzip -> psql
-                    with gzip.open(dump_file, 'rb') as f:
-                        process = subprocess.Popen(restore_cmd, stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
-                        stdout, stderr = process.communicate()
+                     # Use a pipe chain: gzip -dc dump_file | psql ...
+                     # This is more efficient and avoids Python-level streaming issues
+                     # Use a pipe chain: gzip -dc dump_file | sed filter | psql ...
+                     cat_cmd = ["gzip", "-dc", dump_file]
+                     cat_proc = subprocess.Popen(cat_cmd, stdout=subprocess.PIPE)
+                     
+                     # Filter out 'transaction_timeout' which causes errors on older server versions
+                     filter_cmd = ["sed", "s/SET transaction_timeout = 0;//g"]
+                     filter_proc = subprocess.Popen(filter_cmd, stdin=cat_proc.stdout, stdout=subprocess.PIPE)
+                     cat_proc.stdout.close()
+                     
+                     process = subprocess.Popen(restore_cmd, stdin=filter_proc.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
+                     filter_proc.stdout.close()
+                     stdout, stderr = process.communicate()
+                     cat_proc.wait()
                 else:
                     with open(dump_file, 'rb') as f:
                         process = subprocess.Popen(restore_cmd, stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
                         stdout, stderr = process.communicate()
 
                 if process.returncode != 0:
-                    raise RuntimeError(f"Restore failed: {stderr.decode()}")
+                    raise RuntimeError(f"Restore failed: {stderr.decode(errors='replace')}")
             except Exception as e:
                 raise RuntimeError(f"Restore execution failed: {e}")
 

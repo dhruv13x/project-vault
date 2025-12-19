@@ -21,8 +21,57 @@ def handle_vault_command(args, defaults, notifier=None, credentials_module=None)
     if not args.vault_path:
         from src.common.paths import get_default_vault_path
         args.vault_path = str(get_default_vault_path(project_name))
-        # Ensure parent dir exists (project home)
-        os.makedirs(os.path.dirname(args.vault_path), exist_ok=True)
+
+    print(f"DEBUG: include_db = {getattr(args, "include_db", "NOT_FOUND")}")
+    # Ensure parent dir exists (project home)
+    vault_dir = os.path.dirname(args.vault_path)
+    if vault_dir:
+        os.makedirs(vault_dir, exist_ok=True)
+
+    # --- Database Marker Detection & Suggestions ---
+    enable_suggestions = defaults.get("core", {}).get("enable_suggestions", True)
+    if enable_suggestions and getattr(args, "include_db", False) is not True:
+        from src.common import detective
+        markers = detective.detect_database_markers(source_abs)
+        if markers:
+            if defaults.get("database"):
+                console.print(Panel(Text.from_markup(
+                    f"💡 [bold yellow]Database markers detected:[/] {', '.join(markers)}.\n"
+                    "Would you like to include a database snapshot? Re-run with [bold cyan]--include-db[/]."
+                ), border_style="yellow"))
+            else:
+                console.print(Panel(Text.from_markup(
+                    f"💡 [bold cyan]Database markers detected:[/] {', '.join(markers)}.\n"
+                    "Run [bold cyan]pv init --db[/] to configure database snapshots for this project."
+                ), border_style="cyan"))
+
+    db_manifest_hash = None
+        
+    if getattr(args, "include_db", False) is True:
+        from src.projectvault.engines.db_engine import DatabaseEngine
+        from src.common.hashing import get_hash
+        db_config = defaults.get("database", {})
+        if not db_config:
+            console.print("[error]Error: --include-db used but no [database] section in pv.toml.[/error]")
+            sys.exit(1)
+
+        driver_name = db_config.get("driver", "postgres")
+        engine = DatabaseEngine(driver_name, db_config)
+
+        # Backup DB first
+        db_manifest_path = engine.backup(
+            resolve_path(args.vault_path),
+            project_name,
+            cloud_sync=getattr(args, "cloud", False),
+            credentials_module=credentials_module,
+            bucket=args.bucket,
+            endpoint=args.endpoint
+        )
+        db_manifest_hash = get_hash(db_manifest_path)
+        # Register the db manifest itself as a blob in CAS so it can be restored
+        from src.common import cas
+        objects_dir = os.path.join(resolve_path(args.vault_path), "objects")
+        db_manifest_hash = cas.store_object(db_manifest_path, objects_dir)
 
     # Extract hooks
     hooks = defaults.get("hooks", {})
@@ -46,13 +95,27 @@ def handle_vault_command(args, defaults, notifier=None, credentials_module=None)
             resolve_path(args.vault_path),
             project_name=project_name,
             hooks=hooks,
-            follow_symlinks=not preserve_symlinks
+            follow_symlinks=not preserve_symlinks,
+            db_manifest=db_manifest_hash
         )
+        
+        # Inject db_manifest link if present
+        if db_manifest_hash:
+            try:
+                import json
+                with open(manifest_path, 'r') as f:
+                    m_data = json.load(f)
+                m_data['db_manifest'] = db_manifest_hash
+                with open(manifest_path, 'w') as f:
+                    json.dump(m_data, f, indent=2)
+                console.print(f"[dim]Linked database snapshot {db_manifest_hash} to project manifest.[/dim]")
+            except Exception as e:
+                console.print(f"[warning]Warning: Failed to link DB snapshot to manifest: {e}[/warning]")
         if notifier:
             notifier.send_message(f"✅ Snapshot created for '{project_name}'\nManifest: {manifest_path}", level="success")
             
         # --- Cloud Sync Integration ---
-        if getattr(args, "cloud", False):
+        if getattr(args, "cloud", False) is True:
             if not credentials_module:
                 console.print("[warning]Warning: credentials_module not provided, skipping cloud sync.[/warning]")
             else:
@@ -100,13 +163,65 @@ def handle_vault_restore_command(args, defaults):
         console.print("[bold red]⚠ Lifecycle Hooks Detected[/bold red]")
         console.print("   This will execute shell commands defined in the snapshot configuration.")
         console.print("   Ensure you trust the source of this backup.")
+    import json
 
     from projectrestore import restore_engine
+    manifest_path = resolve_path(args.manifest)
+    dest_path = resolve_path(args.dest)
+    
+    # 1. Restore Files
     restore_engine.restore_snapshot(
-        resolve_path(args.manifest),
-        resolve_path(args.dest),
+        manifest_path,
+        dest_path,
         hooks=hooks
     )
+
+    # 2. Check for linked Database Snapshot
+    try:
+        with open(manifest_path, 'r') as f:
+            manifest_data = json.load(f)
+        
+        db_manifest_hash = manifest_data.get("db_manifest")
+        if db_manifest_hash:
+            console.print(Panel(Text.from_markup(
+                f"📦 [bold cyan]Linked Database Snapshot Detected:[/] {db_manifest_hash}\n"
+                "Restoring database state to match the project version..."
+            ), border_style="cyan"))
+            
+            # Find the database manifest in the vault
+            # Since it's content-addressable, we look in the objects dir
+            vault_path = os.path.dirname(os.path.dirname(os.path.dirname(manifest_path)))
+            db_manifest_path = os.path.join(vault_path, "objects", db_manifest_hash)
+            
+            if os.path.exists(db_manifest_path):
+                from src.projectvault.engines.db_engine import DatabaseEngine
+                from src.common import cas
+                import tempfile
+                import shutil
+                db_config = defaults.get("database", {})
+                if not db_config:
+                    console.print("[warning]Warning: Database manifest found, but no [database] config in pv.toml. Skipping DB restore.[/warning]")
+                else:
+                    engine = DatabaseEngine(db_config.get("driver", "postgres"), db_config)
+                    force_restore = getattr(args, "force", False)
+                    
+                    # 1. Copy manifest OUT of the vault to bypass faulty safety checks in projectrestore
+                    # 2. Decompress if needed (CAS objects are always compressed)
+                    with tempfile.TemporaryDirectory() as tmp_vault:
+                        dummy_objects = os.path.join(tmp_vault, "objects")
+                        dummy_snapshots = os.path.join(tmp_vault, "snapshots", "db_restore")
+                        os.makedirs(dummy_snapshots, exist_ok=True)
+                        os.symlink(os.path.join(vault_path, "objects"), dummy_objects)
+                        dummy_m_path = os.path.join(dummy_snapshots, "manifest.json")
+                        try:
+                            cas.restore_object_to_file(db_manifest_path, dummy_m_path)
+                            engine.restore(dummy_m_path, tmp_vault, force=force_restore)
+                        except Exception as e:
+                            console.print(f"[error]Linked Database restore failed: {e}[/error]")
+            else:
+                console.print(f"[error]Error: Database manifest blob {db_manifest_hash} not found in vault objects.[/error]")
+    except Exception as e:
+        console.print(f"[error]Failed to restore linked database: {e}[/error]")
 
 def handle_capsule_export_command(args, defaults):
     if not args.manifest:
@@ -147,8 +262,42 @@ def handle_capsule_import_command(args, defaults):
         console.print(f"[error]Error importing capsule: {e}[/error]")
         sys.exit(1)
 
+def handle_init_db_interactive():
+    """Interactive prompt to configure database in pv.toml."""
+    console.print(Panel("[bold magenta]Database Configuration Wizard[/bold magenta]", border_style="magenta"))
+    
+    driver = input("Database Driver (postgres/mysql) [postgres]: ").strip().lower() or "postgres"
+    host = input("Database Host [localhost]: ").strip() or "localhost"
+    port = input("Database Port [5432]: ").strip() or "5432"
+    user = input("Database User: ").strip()
+    dbname = input("Database Name: ").strip()
+    
+    config_entry = f"""
+[database]
+driver = "{driver}"
+host = "{host}"
+port = {port}
+user = "{user}"
+dbname = "{dbname}"
+# password = "..." # Recommended: Set PV_DB_PASSWORD env var instead
+"""
+    
+    pv_path = "pv.toml"
+    if not os.path.exists(pv_path):
+        from src.common import config
+        config.generate_init_file(pv_path)
+        
+    with open(pv_path, "a") as f:
+        f.write(config_entry)
+        
+    console.print(f"\n[success]✅ Database configuration appended to {pv_path}[/success]")
+
 def handle_init_command(args):
     import common.config as config
+    if getattr(args, "db", False) is True:
+        handle_init_db_interactive()
+        return
+
     if args.pyproject:
         print("\n[tool.project-vault]")
         print('bucket = "my-project-backups"')

@@ -48,9 +48,9 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = [
+  ".",
   "projectclone",
   "projectrestore",
-  "src",        # src-based modules
   "project-vault-core/src",
 ]
 
@@ -58,6 +58,7 @@ testpaths = [
   "tests",
   "projectclone/tests",
   "projectrestore/tests",
+  "src/projectvault/tests",
 ]
 
 asyncio_mode = "auto"

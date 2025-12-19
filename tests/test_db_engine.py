@@ -86,7 +86,7 @@ class TestDatabaseEngine(unittest.TestCase):
             mock_cas_backup.return_value = "/vault/manifests/man_123.json"
 
             # Mock manifest tagging (open/read/write)
-            with patch("builtins.open", mock_open(read_data='{"id": "123"}')) as mock_file_open:
+            with patch("src.projectvault.engines.db_engine.open", mock_open(read_data='{"id": "123"}')) as mock_file_open:
                 manifest = self.engine.backup("/vault", "test_project")
 
             self.assertEqual(manifest, "/vault/manifests/man_123.json")
@@ -111,8 +111,7 @@ class TestDatabaseEngine(unittest.TestCase):
     @patch("subprocess.run")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
-    @patch("gzip.open")
-    def test_restore_success_compressed(self, mock_gzip_open, mock_walk, mock_temp_dir, mock_run, mock_popen, mock_restore):
+    def test_restore_success_compressed(self, mock_walk, mock_temp_dir, mock_run, mock_popen, mock_restore):
         # Mock temp dir
         mock_temp_dir.return_value.__enter__.return_value = "/tmp/restore_dir"
 
@@ -122,25 +121,33 @@ class TestDatabaseEngine(unittest.TestCase):
         # Mock verification
         mock_run.return_value = MagicMock(returncode=0)
 
-        # Mock Popen (psql restore)
+        # Mock Popen calls (one for gzip -dc, one for psql)
         process_mock = MagicMock()
         process_mock.communicate.return_value = (b"", b"")
         process_mock.returncode = 0
+        process_mock.stdout.close.return_value = None
         mock_popen.return_value = process_mock
 
         # Mock manifest read
-        with patch("builtins.open", mock_open(read_data='{"snapshot_type": "database"}')):
+        with patch("src.projectvault.engines.db_engine.open", mock_open(read_data='{"snapshot_type": "database"}')):
              self.engine.restore("/vault/manifest.json", "/vault")
 
         mock_restore.assert_called_with("/vault/manifest.json", "/tmp/restore_dir")
 
-        # Verify gzip open called
-        mock_gzip_open.assert_called()
-
-        # Verify psql called
-        mock_popen.assert_called()
-        args = mock_popen.call_args[0][0]
-        self.assertIn("psql", args)
+        # Verify three Popen calls (gzip -dc, sed filter, psql)
+        self.assertEqual(mock_popen.call_count, 3)
+        
+        # First call should be gzip -dc
+        args1 = mock_popen.call_args_list[0][0][0]
+        self.assertIn("gzip", args1)
+        
+        # Second call should be sed
+        args2 = mock_popen.call_args_list[1][0][0]
+        self.assertIn("sed", args2)
+        
+        # Third call should be psql
+        args3 = mock_popen.call_args_list[2][0][0]
+        self.assertIn("psql", args3)
 
 if __name__ == '__main__':
     unittest.main()

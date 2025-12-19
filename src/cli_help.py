@@ -102,6 +102,20 @@ Lists available snapshots, either locally or in the cloud.
   [yellow]-h, --help[/]        Show this help message.
 """), title="[bold]Help: `pv list`[/]", border_style="blue"))
 
+def print_db_help():
+    console.print(Panel(Text.from_markup("""
+[bold green]Usage:[/] [cyan]pv db[/] [yellow]<subcommand>[/] [magenta][<args>...][/]
+
+Manage database snapshots linked to your project.
+
+[bold]Subcommands:[/bold]
+  [cyan]backup[/cyan]          Create a snapshot of the configured database.
+  [cyan]restore[/cyan]         Restore the database from a specific snapshot.
+
+[bold]Arguments:[/bold]
+  [yellow]-h, --help[/]        Show this help message.
+"""), title="[bold]Help: `pv db`[/]", border_style="blue"))
+
 def print_main_help():
     """Prints the main help panel using rich."""
     grid = Text.from_markup(
@@ -114,6 +128,7 @@ def print_main_help():
   [cyan]vault[/cyan]           Create a new content-addressable snapshot of a project.
   [cyan]vault-restore[/cyan]   Restore a project from a vault snapshot.
   [cyan]capsule[/cyan]         Alias for vault operations (create/restore).
+  [cyan]db[/cyan]              Manage database snapshots.
   [cyan]verify-clone[/cyan]    Verify that a restored project is identical to the source.
 
 [bold green]Cloud Commands[/bold green]
@@ -174,6 +189,10 @@ class RichPullHelpAction(argparse.Action):
 class RichListHelpAction(argparse.Action):
     def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
     def __call__(self, p, n, v, o=None): print_list_help(); p.exit()
+
+class RichDbHelpAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs): super().__init__(option_strings, dest, nargs=0, **kwargs)
+    def __call__(self, p, n, v, o=None): print_db_help(); p.exit()
 
 class RichHelpAction(argparse.Action):
     """

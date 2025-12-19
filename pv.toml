@@ -1,5 +1,9 @@
 # Project Vault Configuration (pv.toml)
 
+[core]
+# Set to false to disable database marker detection suggestions
+enable_suggestions = true
+
 # --- Cloud Settings ---
 # The name of your B2/S3 Bucket
 bucket = "my-project-backups"
@@ -32,3 +36,10 @@ endpoint = "https://s3.eu-central-003.backblazeb2.com"
 # allow_insecure_storage = false # Set to true to enable
 # key_id = "..."
 # secret_key = "..."
+[database]
+driver = "postgres"
+host = "localhost"
+port = 5432
+user = "postgres"
+dbname = "testdb"
+password = "mock"

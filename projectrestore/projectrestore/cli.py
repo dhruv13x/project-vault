@@ -291,6 +291,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--bucket", help="Cloud bucket name (required for --cloud)")
     p.add_argument("--endpoint", help="Cloud endpoint URL")
     p.add_argument("--file", help="Specific archive filename to download/extract (required for --cloud)")
+    p.add_argument("--include-db", action="store_true", help="Automatically restore bundled database if found")
+    p.add_argument("--force", action="store_true", help="Force database schema recreation if bundled DB is restored")
     p.add_argument(
         "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
     )
@@ -419,6 +421,101 @@ def main() -> int:
         if not args.dry_run:
             total = count_files(extract_dir)
             LOG.info("Extraction complete. Total files extracted: %d", total)
+            
+            # --- Bundled Database Restore Integration ---
+            bundled_db_path = extract_dir / ".pv" / "database_dump.sql.gz"
+            if bundled_db_path.exists():
+                console.print(Panel(Text.from_markup(
+                    f"📦 [bold cyan]Bundled Database Dump Detected:[/] {bundled_db_path.name}\n"
+                    "Project includes an atomic database state."
+                ), border_style="cyan"))
+                
+                do_restore = getattr(args, "include_db", False)
+                if not do_restore:
+                    try:
+                        ans = input("Would you like to restore the bundled database? [y/N] ").strip().lower()
+                        if ans in ("y", "yes"):
+                            do_restore = True
+                    except EOFError:
+                        pass
+                
+                if do_restore:
+                    try:
+                        # reach back into vault src
+                        from src.projectvault.engines.db_engine import DatabaseEngine
+                        from src.common import config as vault_config
+                        
+                        v_defaults = vault_config.load_project_config()
+                        db_config = v_defaults.get("database", {})
+                        
+                        if not db_config:
+                            LOG.error("No [database] configuration found in pv.toml. Cannot restore bundled DB.")
+                        else:
+                            LOG.info("Restoring bundled database...")
+                            engine = DatabaseEngine(db_config.get("driver", "postgres"), db_config)
+                            
+                            # We need a dummy manifest for the DB Engine to work?
+                            # Actually, we can use a temporary manifest.
+                            import json
+                            import tempfile
+                            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tf:
+                                manifest_data = {
+                                    "snapshot_type": "database",
+                                    "files": {
+                                        str(bundled_db_path.name): {
+                                            "type": "file" # Minimal requirements
+                                        }
+                                    }
+                                }
+                                json.dump(manifest_data, tf)
+                                tf_path = tf.name
+                            
+                            try:
+                                # We need to point vault_path to where the dump is?
+                                # Engine expects objects dir or similar.
+                                # Let's create a temporary vault structure.
+                                with tempfile.TemporaryDirectory() as tmp_vault:
+                                    # Link objects or place the dump
+                                    tmp_obj_dir = Path(tmp_vault) / "objects"
+                                    tmp_obj_dir.mkdir()
+                                    
+                                    # In our new engine, restore_snapshot is called.
+                                    # It reads from manifest, finds file, etc.
+                                    # If we use a "database" type manifest, it looks for dump.
+                                    
+                                    # Let's bypass the manifest logic and call restore directly if we can,
+                                    # or just make the manifest happy.
+                                    
+                                    # Mocking a content-addressable vault for the engine:
+                                    import hashlib
+                                    with open(bundled_db_path, "rb") as f:
+                                        file_hash = hashlib.sha256(f.read()).hexdigest()
+                                    
+                                    # Create the 'object' file
+                                    import shutil
+                                    shutil.copy2(bundled_db_path, tmp_obj_dir / file_hash)
+                                    
+                                    # Update manifest with real hash
+                                    manifest_data["files"] = {
+                                        "database_dump.sql.gz": {
+                                            "hash": file_hash,
+                                            "size": bundled_db_path.stat().st_size
+                                        }
+                                    }
+                                    with open(tf_path, 'w') as f:
+                                        json.dump(manifest_data, f)
+                                    
+                                    # Now the engine can restore from this tmp_vault
+                                    engine.restore(tf_path, tmp_vault, force=getattr(args, "force", False))
+                                    LOG.info("✅ Bundled database restored successfully.")
+                            finally:
+                                if os.path.exists(tf_path):
+                                    os.unlink(tf_path)
+                    except Exception as e:
+                        LOG.error("❌ Failed to restore bundled database: %s", e)
+                else:
+                    LOG.info("Skipping bundled database restore.")
+
         else:
             LOG.info("Dry-run validation successful.")
         return 0

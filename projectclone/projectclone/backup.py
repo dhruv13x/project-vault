@@ -34,6 +34,7 @@ def create_archive(
     log_fp=None,
     excludes: Optional[List[str]] = None,
     exclude_symlinks: bool = False,
+    extra_files: Optional[dict] = None,
 ) -> Path:
     """
     Create gzip tarball at dest_temp_file (ensure proper .tar.gz suffix) and return its Path.
@@ -41,6 +42,7 @@ def create_archive(
     - This function will NOT register the final archive for cleanup; callers should register the
       containing tmp directory if they want automatic cleanup.
     - Replaced recursive tar.add with manual walk to support consistent excludes and symlink filtering.
+    - extra_files: Dict mapping internal archive path to external file system Path.
     """
     # normalize final path to end with .tar.gz
     name = str(dest_temp_file)
@@ -66,6 +68,21 @@ def create_archive(
         # dereference=True in gettarinfo matches "not preserve_symlinks" (follow links).
         
         with tarfile.open(final_temp, "w:gz", format=tarfile.PAX_FORMAT) as tar:
+            # --- Add Extra Files (e.g. Database Dump) ---
+            if extra_files:
+                for internal_path, external_path in extra_files.items():
+                    if os.path.exists(external_path):
+                        # Use internal_path as the arcname (e.g. .pv/database_dump.sql.gz)
+                        # We must ensure it's relative to the archive root?
+                        # No, tar.add arcname is literal path in archive.
+                        # But typically archives have a top-level dir.
+                        # Should we put them inside top_level?
+                        target_arc = str(Path(top_level) / internal_path)
+                        tar.add(str(external_path), arcname=target_arc)
+                        if log_fp:
+                            try: log_fp.write(f"Bundled extra file: {external_path} -> {target_arc}\n")
+                            except: pass
+
             # Add the root directory itself first (if it's a directory)
             if src.is_dir():
                 # For the root dir, we add it as a directory structure
@@ -259,11 +276,13 @@ def copy_tree_atomic(
     show_progress: bool = True,
     progress_interval: int = 50,
     excludes: Optional[List[str]] = None,
+    extra_files: Optional[dict] = None,
 ) -> Path:
     """
     Copy a tree into a temporary directory next to dest_parent and move it into place.
     - preserve_symlinks: keep symlinks instead of copying target content
     - excludes: list of exclude patterns (see matches_excludes)
+    - extra_files: Dict mapping internal path to external Path.
     """
     tmp_dir = dest_parent / f".tmp_{dest_name}_{os.getpid()}"
     if tmp_dir.exists():
@@ -279,12 +298,32 @@ def copy_tree_atomic(
     ignore_spec = get_project_ignore_spec(src)
 
     file_count, total_size = walk_stats(src, follow_symlinks=not preserve_symlinks, excludes=excludes, ignore_spec=ignore_spec)
+    
+    # Adjust file count/size for extra files
+    if extra_files:
+        for ext_p in extra_files.values():
+            if ext_p.exists():
+                file_count += 1
+                total_size += ext_p.stat().st_size
+
     if log_fp:
         try:
             log_fp.write(f"Copying {file_count} files, approx {human_size(total_size)}\n")
         except Exception:
             pass
     copied = 0
+
+    # --- Copy Extra Files ---
+    if extra_files:
+        for int_rel, ext_abs in extra_files.items():
+            if ext_abs.exists():
+                target_p = tmp_dir / int_rel
+                ensure_dir(target_p.parent)
+                shutil.copy2(ext_abs, target_p)
+                if log_fp:
+                    try: log_fp.write(f"Bundled extra file: {ext_abs} -> {target_p}\n")
+                    except: pass
+                copied += 1
 
     for dirpath, dirnames, filenames in os.walk(src, followlinks=not preserve_symlinks):
         # We must filter dirnames AND check ignore_spec

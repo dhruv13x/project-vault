@@ -263,6 +263,7 @@ def parse_args():
     p.add_argument("--dry-run", action="store_true", help="only estimate and show actions, do not write (for incremental allow rsync dry-run)")
     p.add_argument("--incremental", action="store_true", help="use rsync incremental (requires rsync)")
     p.add_argument("--verbose", action="store_true", help="verbose logging")
+    p.add_argument("--include-db", action="store_true", help="include database snapshot in the backup")
     p.add_argument("--cloud", action="store_true", help="upload the backup to cloud after creation")
     p.add_argument("--bucket", help="target cloud bucket name (required if --cloud is used)")
     p.add_argument("--endpoint", help="target cloud endpoint URL (optional)")
@@ -409,6 +410,77 @@ def main():
 
         # Main operation
         final_output_path = None
+        
+        # --- Database Bundling Integration ---
+        extra_files = {}
+        db_dump_path = None
+        if getattr(args, "include_db", False) is True:
+            try:
+                # We need to reach back into the main project vault to get the DB Engine
+                # and the configuration.
+                from src.projectvault.engines.db_engine import DatabaseEngine
+                from src.common import config as vault_config
+                
+                # Load Config (since we are in a passthrough context, we re-load)
+                v_defaults = vault_config.load_project_config()
+                db_config = v_defaults.get("database", {})
+                
+                if not db_config:
+                    raise ValueError("No [database] section found in pv.toml.")
+                
+                engine = DatabaseEngine(db_config.get("driver", "postgres"), db_config)
+                
+                # Perform dump to a temporary directory
+                # We use a temp dir that we'll clean up later
+                db_temp_dir = tempfile.mkdtemp(prefix="pv_db_bundle_")
+                cleanup_state.register_tmp_dir(Path(db_temp_dir))
+                
+                print(f"Creating database dump for bundling...")
+                # We use a direct internal backup method or similar?
+                # Actually, DbEngine.backup creates a manifest in a vault.
+                # Here we just want the raw file for bundling into an archive.
+                # Let's use a simplified dump flow or call backup to a temp vault.
+                
+                # Compromise: Create a mini-vault for the DB dump then grab the object
+                db_vault = os.path.join(db_temp_dir, "vault")
+                os.makedirs(db_vault, exist_ok=True)
+                
+                manifest_path = engine.backup(db_vault, foldername)
+                
+                # Find the dump file in objects
+                # (Simple way: look for .sql.gz in the temp dir's objects)
+                found_dump = None
+                obj_dir = os.path.join(db_vault, "objects")
+                if os.path.exists(obj_dir):
+                    for fn in os.listdir(obj_dir):
+                        # The object name is a hash, we don't know which one is the dump
+                        # BUT since it's a new mini-vault, it should be the only one?
+                        # Or we check manifest
+                        import json
+                        with open(manifest_path, 'r') as f:
+                            m_data = json.load(f)
+                        # In DB snapshots, we put the dump in 'files' mapping?
+                        # Let's check db_engine.py
+                        for rel_path, meta in m_data.get('files', {}).items():
+                            if rel_path.endswith('.sql.gz') or rel_path.endswith('.sql'):
+                                found_dump = os.path.join(obj_dir, meta['hash'])
+                                break
+                
+                if found_dump:
+                    db_dump_path = found_dump
+                    # For archives, we map it to .pv/database_dump.sql.gz
+                    extra_files[".pv/database_dump.sql.gz"] = Path(db_dump_path)
+                    print(f"Database dump prepared for bundling.")
+                else:
+                    raise RuntimeError("Could not locate database dump in temporary vault.")
+
+            except Exception as e:
+                print(f"ERROR during database bundling: {e}")
+                if log_fp:
+                    try: log_fp.write(f"ERROR during database bundling: {e}\n")
+                    except: pass
+                sys.exit(3)
+
         if args.incremental:
             if not have_rsync():
                 raise RuntimeError("incremental requested but rsync not found")
@@ -460,6 +532,7 @@ def main():
                     log_fp=log_fp,
                     excludes=args.exclude,
                     exclude_symlinks=args.exclude_symlinks,
+                    extra_files=extra_files,
                 )
 
                 # Move archive to final destination (with unique naming if necessary)
@@ -517,6 +590,7 @@ def main():
                 show_progress=True,
                 progress_interval=args.progress_interval,
                 excludes=args.exclude,
+                extra_files=extra_files,
             )
             print(f"Folder backup created: {final}")
             final_output_path = final

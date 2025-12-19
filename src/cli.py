@@ -21,7 +21,8 @@ from src.cli_help import (
     RichPushHelpAction,
     RichPullHelpAction,
     RichListHelpAction,
-    RichVerifyCloneHelpAction
+    RichVerifyCloneHelpAction,
+    RichDbHelpAction
 )
 
 # Import command handlers from new dispatch module
@@ -241,6 +242,8 @@ def _real_main():
     backup_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments for projectclone")
 
     archive_restore_parser = subparsers.add_parser("archive-restore", help="Safely restore legacy archive backups. Pass -h for more.", add_help=False)
+    archive_restore_parser.add_argument("--include-db", action="store_true", help="Automatically restore bundled database if found")
+    archive_restore_parser.add_argument("--force", action="store_true", help="Force database schema recreation")
     archive_restore_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments for projectrestore")
     
     # --- Vault Command ---
@@ -253,12 +256,14 @@ def _real_main():
     vault_parser.add_argument("--cloud", action="store_true", help="push to cloud after creating snapshot")
     vault_parser.add_argument("--bucket", default=defaults.get("bucket"), help="target cloud bucket")
     vault_parser.add_argument("--endpoint", default=defaults.get("endpoint"), help="cloud endpoint")
+    vault_parser.add_argument("--include-db", action="store_true", help="include database snapshot")
 
     # --- Vault Restore Command ---
     vault_restore_parser = subparsers.add_parser("vault-restore", add_help=False)
     vault_restore_parser.add_argument("-h", "--help", action=RichVaultRestoreHelpAction)
     vault_restore_parser.add_argument("manifest", help="Path to manifest.json")
     vault_restore_parser.add_argument("dest", nargs="?", default=defaults.get("restore_path"))
+    vault_restore_parser.add_argument("--force", action="store_true", help="Drop and recreate database schema during restore")
 
     # --- Verify Clone Command ---
     verify_clone_parser = subparsers.add_parser("verify-clone", add_help=False)
@@ -280,6 +285,7 @@ def _real_main():
     capsule_create_parser.add_argument("--cloud", action="store_true", help="push to cloud after creating snapshot")
     capsule_create_parser.add_argument("--bucket", default=defaults.get("bucket"))
     capsule_create_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
+    capsule_create_parser.add_argument("--include-db", action="store_true", help="include database snapshot")
 
     # pv capsule restore -> pv vault-restore
     capsule_restore_parser = capsule_subparsers.add_parser("restore", add_help=False)
@@ -298,7 +304,8 @@ def _real_main():
     capsule_import_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Target vault path")
 
     # --- Database Command ---
-    db_parser = subparsers.add_parser("db", help="Manage database snapshots", formatter_class=RichHelpFormatter)
+    db_parser = subparsers.add_parser("db", add_help=False)
+    db_parser.add_argument("-h", "--help", action=RichDbHelpAction)
     db_subparsers = db_parser.add_subparsers(dest="db_command", title="Database Actions")
 
     # pv db backup
@@ -344,6 +351,7 @@ def _real_main():
     init_parser = subparsers.add_parser("init", help="Initialize configuration", formatter_class=RichHelpFormatter)
     init_parser.add_argument("--pyproject", action="store_true", help="Print configuration for pyproject.toml instead of creating pv.toml")
     init_parser.add_argument("--smart", action="store_true", help="Auto-detect project type and generate .pvignore")
+    init_parser.add_argument("--db", action="store_true", help="Interactive database configuration")
 
     # --- Status Command ---
     status_parser = subparsers.add_parser("status", help="Show workspace and vault status", formatter_class=RichHelpFormatter)
