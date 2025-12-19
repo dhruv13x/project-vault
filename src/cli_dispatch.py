@@ -328,20 +328,23 @@ def handle_status_command(args, defaults, credentials_module):
 
     from projectclone import status_engine
 
-    # Prepare cloud config if bucket is present
+    # Prepare cloud config if cloud flag is set
     cloud_config = {}
-    if args.bucket:
-        key_id, app_key, source = credentials_module.resolve_credentials(args)
-        if key_id and app_key:
-            # Quietly add source info, status engine might use it or we can log it
-            pass
+    if getattr(args, "cloud", False):
+        if not args.bucket:
+            console.print("[yellow]Hint: You requested --cloud status but no bucket is configured.[/yellow]")
+            console.print("      Set 'bucket' in pv.toml or use --bucket <name>")
+        else:
+            key_id, app_key, source = credentials_module.resolve_credentials(args)
+            if not key_id or not app_key:
+                console.print(f"[warning]Warning: Could not resolve cloud credentials (Source: {source}).[/warning]")
 
-        cloud_config = {
-            "bucket": args.bucket,
-            "endpoint": args.endpoint,
-            "key_id": key_id,
-            "app_key": app_key
-        }
+            cloud_config = {
+                "bucket": args.bucket,
+                "endpoint": args.endpoint,
+                "key_id": key_id,
+                "app_key": app_key
+            }
 
     status_engine.show_status(
         resolve_path(args.source),
