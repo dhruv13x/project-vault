@@ -3,6 +3,12 @@
 import unittest
 from unittest.mock import MagicMock, patch
 import os
+import sys
+import subprocess
+import tempfile
+from textual.widgets import Tree, Header, Footer, Static, Label
+from textual.containers import Container, VerticalScroll
+from textual.widgets.tree import TreeNode
 
 # Mock textual to avoid needing a display/terminal
 # We only need the class definition to exist for inheritance
@@ -10,14 +16,21 @@ import os
 # So we need textual installed, which it is.
 
 from src.tui import ProjectVaultApp
-from textual.widgets import Tree
-from textual.widgets.tree import TreeNode
 
 class TestTuiLogic(unittest.TestCase):
     def setUp(self):
         self.vault_path = "/tmp/vault"
         self.project_name = "test_project"
         self.app = ProjectVaultApp(self.vault_path, self.project_name)
+
+    def test_compose(self):
+        """Test the compose method yields the expected widgets."""
+        widgets = list(self.app.compose())
+
+        self.assertTrue(any(isinstance(w, Header) for w in widgets))
+        self.assertTrue(any(isinstance(w, Container) for w in widgets))
+        self.assertTrue(any(isinstance(w, VerticalScroll) for w in widgets))
+        self.assertTrue(any(isinstance(w, Footer) for w in widgets))
 
     @patch("os.path.exists")
     @patch("os.listdir")
@@ -182,6 +195,46 @@ class TestTuiLogic(unittest.TestCase):
         # Assert that the loading function was called
         mock_load_snapshot.assert_called_once_with(mock_node, "/path/to/snapshot.json")
 
+    @patch("src.tui.ProjectVaultApp.load_snapshot_into_node")
+    def test_on_tree_node_expanded_already_loaded(self, mock_load_snapshot):
+        """Test expansion when children already exist."""
+        mock_node = MagicMock(spec=TreeNode)
+        mock_node.data = {"type": "snapshot", "path": "/path/to/snapshot.json"}
+        mock_node.children = [MagicMock()]  # Has children
+
+        mock_event = MagicMock()
+        mock_event.node = mock_node
+
+        self.app.on_tree_node_expanded(mock_event)
+
+        # Should NOT load again
+        mock_load_snapshot.assert_not_called()
+
+    @patch("src.tui.ProjectVaultApp.load_snapshot_into_node")
+    def test_on_tree_node_expanded_not_snapshot(self, mock_load_snapshot):
+        """Test expansion of non-snapshot node."""
+        mock_node = MagicMock(spec=TreeNode)
+        mock_node.data = {"type": "directory"}
+        mock_node.children = []
+
+        mock_event = MagicMock()
+        mock_event.node = mock_node
+
+        self.app.on_tree_node_expanded(mock_event)
+
+        # Should NOT load again
+        mock_load_snapshot.assert_not_called()
+
+    def test_on_tree_node_expanded_no_data(self):
+        """Test expansion of node without data."""
+        mock_node = MagicMock(spec=TreeNode)
+        mock_node.data = None
+        mock_event = MagicMock()
+        mock_event.node = mock_node
+
+        self.app.on_tree_node_expanded(mock_event)
+        # Should just return without error
+
     @patch("os.path.exists", return_value=False)
     def test_on_mount_no_snapshots_dir(self, mock_exists):
         """
@@ -233,6 +286,105 @@ class TestTuiLogic(unittest.TestCase):
         self.app.action_restore_file()
 
         self.app.notify.assert_called_with("No file selected.", severity="warning")
+
+    def test_action_restore_file_not_a_file(self):
+        """Test restore action when selection is not a file."""
+        self.app.current_file_node = MagicMock()
+        self.app.current_file_node.data = {"type": "directory"}
+        self.app.action_restore_file()
+        # Should just return
+
+    def test_on_tree_node_selected_not_file(self):
+        """Test selection of non-file node."""
+        mock_node = MagicMock()
+        mock_node.data = {"type": "directory"}
+        mock_event = MagicMock()
+        mock_event.node = mock_node
+        self.app.on_tree_node_selected(mock_event)
+        # Should return early
+
+    @patch("src.common.cas.read_object_text", side_effect=Exception("Read fail"))
+    @patch("os.path.exists", return_value=True)
+    def test_file_selection_read_exception(self, mock_exists, mock_read):
+        """Test exception during file read."""
+        mock_viewer = MagicMock()
+        self.app.query_one = MagicMock(return_value=mock_viewer)
+
+        mock_node = MagicMock()
+        mock_node.data = {"type": "file", "hash": "abc", "rel_path": "test.txt"}
+        mock_event = MagicMock()
+        mock_event.node = mock_node
+
+        self.app.on_tree_node_selected(mock_event)
+
+        mock_viewer.update.assert_called_with("[red]Error reading file:[/red] Read fail")
+
+    @patch("src.common.cas.restore_object_to_file")
+    @patch("os.path.exists", return_value=True)
+    def test_action_restore_file_overwrite(self, mock_exists, mock_restore):
+        """Test restore with overwrite warning."""
+        self.app.current_file_node = MagicMock()
+        self.app.current_file_node.data = {
+            "type": "file",
+            "hash": "h",
+            "rel_path": "foo.txt"
+        }
+        self.app.notify = MagicMock()
+
+        self.app.action_restore_file()
+
+        self.app.notify.assert_any_call("Overwriting foo.txt...", severity="warning")
+        mock_restore.assert_called_once()
+
+    @patch("src.common.cas.restore_object_to_file", side_effect=Exception("Restore fail"))
+    def test_action_restore_file_exception(self, mock_restore):
+        """Test exception during restore."""
+        self.app.current_file_node = MagicMock()
+        self.app.current_file_node.data = {
+            "type": "file",
+            "hash": "h",
+            "rel_path": "foo.txt"
+        }
+        self.app.notify = MagicMock()
+
+        self.app.action_restore_file()
+
+        self.app.notify.assert_called_with("Failed to restore: Restore fail", severity="error")
+
+    def test_main_execution(self):
+        """Test the __main__ block logic with strict timeout."""
+        # Use subprocess to execute the file itself.
+        # We need to set PYTHONPATH so it can find src
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.getcwd()
+
+        tui_path = os.path.join("src", "tui.py")
+        with open(tui_path, "r") as f:
+            content = f.read()
+
+        # Inject mock
+        content = "from unittest.mock import MagicMock\n" + content.replace("app.run()", "print('App ran')")
+
+        # Write to temp file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            # Added timeout=5 to prevent infinite hang
+            result = subprocess.run(
+                [sys.executable, tmp_path],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=5
+            )
+            self.assertIn("App ran", result.stdout)
+        except subprocess.TimeoutExpired:
+            self.fail("Test timed out - app.run() was likely not neutralized")
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
 if __name__ == "__main__":
     unittest.main()
