@@ -25,18 +25,20 @@
 
 ### Prerequisites
 -   **Python 3.10+**
--   **Pip**
+-   **Pip** (Python Package Installer)
+-   **Docker** (Optional, for database backups)
 
 ### Installation
 
 ```bash
-# Install via pip (recommended)
-pip install project-vault
-
-# Or for the latest dev version
-git clone https://github.com/dhruv13x/project-vault
+# Clone the repository
+git clone https://github.com/dhruv13x/project-vault.git
 cd project-vault
-pip install .
+
+# Install in editable mode
+pip install -e .[dev]
+pip install -e ./projectclone
+pip install -e ./projectrestore
 ```
 
 ### Run
@@ -101,6 +103,7 @@ Project Vault can be configured via environment variables, a local `pv.toml`, or
 | `PV_RESTORE_PATH` | Default path to restore projects. | `./restored` | No |
 | `PV_TELEGRAM_BOT_TOKEN` | Telegram Bot Token for notifications. | None | No |
 | `PV_TELEGRAM_CHAT_ID` | Telegram Chat ID for notifications. | None | No |
+| `PV_DB_PASSWORD` | Database password for backups. | None | No |
 
 ### CLI Arguments
 
@@ -113,6 +116,7 @@ Common arguments for `pv vault` (create snapshot):
 | `--symlinks` | Preserve symlinks instead of copying targets. |
 | `--bucket` | Override configured bucket. |
 | `--endpoint` | Override configured endpoint. |
+| `--include-db` | Include database snapshot in the backup. |
 
 Common arguments for `pv list`:
 
@@ -131,14 +135,16 @@ Project Vault follows a monorepo structure, orchestrating specialized engines fo
 
 ```text
 project-vault/
-├── src/                    # Main CLI and Orchestration Logic
-│   ├── cli.py              # Entry Point (pv)
-│   ├── common/             # Shared Utilities (Config, Crypto, S3/B2)
-│   └── tui.py              # Textual User Interface
-├── projectclone/           # Backup Engine (Snapshot Creation)
-│   └── src/projectclone/   # Core Backup Logic
-└── projectrestore/         # Restore Engine (Snapshot Application)
-    └── src/projectrestore/ # Core Restore Logic
+├── src/                        # Main CLI and Orchestration Logic
+│   ├── cli.py                  # Entry Point (pv)
+│   ├── cli_dispatch.py         # Command Routing
+│   ├── common/                 # Shared Utilities (Config, Crypto, S3/B2)
+│   ├── tui.py                  # Textual User Interface
+│   └── projectvault/           # Database & Engine Logic
+├── projectclone/               # Backup Engine (Snapshot Creation)
+│   └── src/projectclone/       # Core Backup Logic
+├── projectrestore/             # Restore Engine (Snapshot Application)
+    └── src/projectrestore/     # Core Restore Logic
 ```
 
 ### Data Flow
@@ -161,14 +167,14 @@ project-vault/
 | `B2ConnectionError` / `403` | Invalid credentials or endpoint. | Check `pv.toml` or `PV_ENDPOINT`. Ensure keys are correct. |
 | `Snapshot not found` | Local vault is empty or path is wrong. | Run `pv list` to see available snapshots. Check `PV_VAULT_PATH`. |
 | `Permission denied` | Lack of write access to vault/restore path. | Ensure you have permissions for the directory. |
+| `Docker not found` | Docker daemon not running. | Start Docker if using `pv db` or `--include-db`. |
 
 ### Debug Mode
 
-To enable verbose logging and see stack traces:
+To enable verbose logging and see stack traces, you can run the CLI module directly:
 
 ```bash
-# Currently, use the verbose flags on sub-tools if available, or check logs.
-# For development, run with python directly:
+# Run with python directly for detailed tracebacks
 python3 src/cli.py [command]
 ```
 
@@ -184,6 +190,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
     ```bash
     git clone https://github.com/dhruv13x/project-vault
     cd project-vault
+    # Install main package and sub-packages in editable mode
     pip install -e .[dev]
     pip install -e ./projectclone
     pip install -e ./projectrestore
