@@ -522,3 +522,59 @@ def handle_notify_test_command(notifier):
         console.print("[success]Notification sent (check your Telegram).[/success]")
     else:
         console.print("[error]Notifier not initialized. Check your config/env.[/error]")
+
+def handle_db_command(args, defaults, credentials_module=None):
+    from src.projectvault.engines.db_engine import DatabaseEngine
+
+    # 1. Load DB Config
+    # Config can be in defaults['database']
+    db_config = defaults.get("database", {})
+
+    # Override from args/env if necessary?
+    # For now assume config in pv.toml is source of truth for connection
+
+    if not db_config:
+        console.print("[error]Error: No [database] section found in pv.toml.[/error]")
+        sys.exit(1)
+
+    driver_name = db_config.get("driver", "postgres") # Default to postgres
+
+    try:
+        engine = DatabaseEngine(driver_name, db_config)
+    except ValueError as e:
+        console.print(f"[error]{e}[/error]")
+        sys.exit(1)
+
+    if args.db_command == "backup":
+        if not args.vault_path:
+            from src.common.paths import get_default_vault_path, get_project_name
+            project_name = get_project_name(os.getcwd())
+            args.vault_path = str(get_default_vault_path(project_name))
+
+        project_name = args.name or os.path.basename(os.getcwd())
+
+        try:
+            engine.backup(
+                resolve_path(args.vault_path),
+                project_name,
+                cloud_sync=args.cloud,
+                credentials_module=credentials_module,
+                bucket=args.bucket,
+                endpoint=args.endpoint
+            )
+        except Exception as e:
+            console.print(f"[error]Database backup failed: {e}[/error]")
+            sys.exit(1)
+
+    elif args.db_command == "restore":
+        # Check integrity or force?
+        try:
+            engine.restore(
+                resolve_path(args.manifest),
+                resolve_path(args.vault_path or defaults.get("vault_path")),
+                force=args.force,
+                credentials_module=credentials_module
+            )
+        except Exception as e:
+            console.print(f"[error]Database restore failed: {e}[/error]")
+            sys.exit(1)
