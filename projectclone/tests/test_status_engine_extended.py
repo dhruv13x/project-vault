@@ -164,7 +164,7 @@ class TestStatusEngineExtended:
                 status_engine.show_status(str(src), str(vault), cloud_config)
 
         captured = capsys.readouterr()
-        assert "Synced with Cloud" in captured.out
+        assert "Local vault is fully synchronized with cloud" in captured.out
 
     def test_show_status_cloud_ahead(self, tmp_path, capsys):
         src = tmp_path / "src"
