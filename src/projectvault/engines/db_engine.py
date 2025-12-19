@@ -125,8 +125,9 @@ class DatabaseEngine:
 
             # Start the dump process with stdout piped
             # Redirect stderr to a temp file to avoid deadlock
+            # Tip: Use bufsize=-1 (system default) to handle large streams efficiently
             with tempfile.TemporaryFile() as stderr_file:
-                dump_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr_file, env=self.env)
+                dump_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr_file, env=self.env, bufsize=-1)
 
                 # Stream from dump -> gzip -> temp file
                 # We can use gzip.GzipFile wrapping the temp file
