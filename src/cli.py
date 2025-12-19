@@ -43,7 +43,8 @@ from src.cli_dispatch import (
     handle_notify_test_command,
     check_cloud_env,
     handle_capsule_export_command,
-    handle_capsule_import_command
+    handle_capsule_import_command,
+    handle_db_command
 )
 
 # Try to import RichHelpFormatter for better help output
@@ -296,6 +297,23 @@ def _real_main():
     capsule_import_parser.add_argument("capsule", help="Path to .pvc capsule file")
     capsule_import_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"), help="Target vault path")
 
+    # --- Database Command ---
+    db_parser = subparsers.add_parser("db", help="Manage database snapshots", formatter_class=RichHelpFormatter)
+    db_subparsers = db_parser.add_subparsers(dest="db_command", title="Database Actions")
+
+    # pv db backup
+    db_backup_parser = db_subparsers.add_parser("backup", help="Backup database to vault")
+    db_backup_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
+    db_backup_parser.add_argument("--name", help="Project/Database name")
+    db_backup_parser.add_argument("--cloud", action="store_true", help="Push to cloud immediately")
+    db_backup_parser.add_argument("--bucket", default=defaults.get("bucket"))
+    db_backup_parser.add_argument("--endpoint", default=defaults.get("endpoint"))
+
+    # pv db restore
+    db_restore_parser = db_subparsers.add_parser("restore", help="Restore database from snapshot")
+    db_restore_parser.add_argument("manifest", help="Path to manifest.json")
+    db_restore_parser.add_argument("vault_path", nargs="?", default=defaults.get("vault_path"))
+    db_restore_parser.add_argument("--force", action="store_true", help="Drop and recreate database schema")
 
     # --- Push Command ---
     push_parser = subparsers.add_parser("push", add_help=False)
@@ -453,6 +471,9 @@ def _real_main():
 
     elif args.command == "notify-test":
         handle_notify_test_command(notifier)
+
+    elif args.command == "db":
+        handle_db_command(args, defaults, credentials)
 
 if __name__ == "__main__":
     main()
