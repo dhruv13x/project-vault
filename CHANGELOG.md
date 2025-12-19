@@ -1,5 +1,9 @@
 # Changelog
 
+## [6.0.1] - 2025-12-19
+### Other Changes
+- remove flaky docker integration test to unblock CI
+
 ## [6.0.0] - 2025-12-19
 ### Features
 - atomic database integration, bundling, and smart detection
