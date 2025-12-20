@@ -30,6 +30,13 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["src*"]
 
+[tool.uv]
+workspace = { members = ["projectclone", "projectrestore"] }
+
+[tool.uv.sources]
+projectclone = { workspace = true }
+projectrestore = { workspace = true }
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",

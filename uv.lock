@@ -2,6 +2,13 @@ version = 1
 revision = 3
 requires-python = ">=3.10"
 
+[manifest]
+members = [
+    "project-vault",
+    "projectclone",
+    "projectrestore",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -594,7 +601,7 @@ wheels = [
 
 [[package]]
 name = "project-vault"
-version = "6.0.1"
+version = "7.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "b2sdk" },
@@ -629,8 +636,8 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.3.0" },
     { name = "boto3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
-    { name = "projectclone", specifier = ">=3.6.0" },
-    { name = "projectrestore", specifier = ">=3.6.0" },
+    { name = "projectclone", editable = "projectclone" },
+    { name = "projectrestore", editable = "projectrestore" },
     { name = "pyfakefs", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
@@ -651,24 +658,56 @@ provides-extras = ["dev"]
 [[package]]
 name = "projectclone"
 version = "4.0.1"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "projectclone" }
 dependencies = [
     { name = "rich" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0e/1c/c211fcff540e4501dc4c37c650ea08c2425fe36bccd203c31e26e4abc39a/projectclone-4.0.1.tar.gz", hash = "sha256:db40dc1dc907b809f25da5579e30289698883d9594f914171364499055ced25e", size = 68241, upload-time = "2025-12-07T08:05:55.265Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b9/eb/13ae8c7be1b281264e5ec5090754c606556875e6042b1b6220389de9ae79/projectclone-4.0.1-py3-none-any.whl", hash = "sha256:24ec11097df13bf09d1f3ae3b83efb48bc969df6d96a9ca433e7c94fa1c2c8a5", size = 38758, upload-time = "2025-12-07T08:05:53.726Z" },
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=24.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "rich", specifier = ">=13.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+    { name = "tqdm", specifier = ">=4.66" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "projectrestore"
 version = "4.0.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/86/c8/559d788504d18db19fa98c96c9ef0d85c69d5124403a3a6401bfaf17bf64/projectrestore-4.0.1.tar.gz", hash = "sha256:94656a41ec9ea33aed5a17467f4125fe1f58f01b5f1c780f638b40a13cf07f65", size = 27105, upload-time = "2025-12-07T07:40:24.577Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/16/0e1f9ee19fe797cbef2ac86e76ebc59dca725a7c90b37bafe36c59952441/projectrestore-4.0.1-py3-none-any.whl", hash = "sha256:0f3efb1e855736cb56f7fce4b44cf38036ed619416df4a16d670bd985f4cf622", size = 20789, upload-time = "2025-12-07T07:40:23.053Z" },
+source = { editable = "projectrestore" }
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=24.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "pyfakefs"
