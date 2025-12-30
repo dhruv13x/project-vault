@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.0.0] - 2025-12-30
+### Other Changes
+- update
+- use python -m pytest in publish workflow
+- Restore [project.optional-dependencies] dev extra in pyproject.toml
+
 ## [8.0.0] - 2025-12-30
 ### Features
 - add --cloud flag to pv status command (#27)
