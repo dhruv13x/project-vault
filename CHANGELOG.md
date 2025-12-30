@@ -1,5 +1,12 @@
 # Changelog
 
+## [11.0.0] - 2025-12-30
+### Bug Fixes
+- **common:** use relative import in credentials.py to fix ModuleNotFoundError
+### Other Changes
+- update version assertions to match current project version
+- synchronize versions to 10.0.0
+
 ## [10.0.0] - 2025-12-30
 ### Documentation
 - update README to reflect monorepo structure and single package install
