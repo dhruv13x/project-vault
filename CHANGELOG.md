@@ -1,5 +1,15 @@
 # Changelog
 
+## [8.0.0] - 2025-12-30
+### Features
+- add --cloud flag to pv status command (#27)
+### Documentation
+- update README.md to V3 Gold Standard (#30)
+### Other Changes
+- Vendor engines and tests into src for self-contained package
+- configure uv workspace for local monorepo packages
+- **tui:** increase coverage to 98% with robust mocking (#29)
+
 ## [7.0.0] - 2025-12-19
 ### Other Changes
 - update
