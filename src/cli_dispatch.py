@@ -79,7 +79,7 @@ def handle_vault_command(args, defaults, notifier=None, credentials_module=None)
         console.print("[bold yellow]⚠ Lifecycle Hooks Detected[/bold yellow]")
         console.print("   Executing arbitrary shell commands defined in pv.toml.")
 
-    from projectclone import cas_engine
+    from src.projectclone import cas_engine
     try:
         # Resolve follow_symlinks from args (default to False if not present to match legacy behavior of preserving by default)
         # If args.symlinks is set (Preserve), follow is False.
@@ -130,7 +130,7 @@ def handle_vault_command(args, defaults, notifier=None, credentials_module=None)
                             notifier.send_message("❌ Cloud Push Failed: Credentials missing", level="error")
                     else:
                         console.print(f"[dim]Authenticated via {source}[/dim]")
-                        from projectclone import sync_engine
+                        from src.projectclone import sync_engine
                         try:
                             sync_engine.sync_to_cloud(
                                 resolve_path(args.vault_path),
@@ -165,7 +165,7 @@ def handle_vault_restore_command(args, defaults):
         console.print("   Ensure you trust the source of this backup.")
     import json
 
-    from projectrestore import restore_engine
+    from src.projectrestore import restore_engine
     manifest_path = resolve_path(args.manifest)
     dest_path = resolve_path(args.dest)
     
@@ -293,7 +293,7 @@ dbname = "{dbname}"
     console.print(f"\n[success]✅ Database configuration appended to {pv_path}[/success]")
 
 def handle_init_command(args):
-    import common.config as config
+    from src.common import config as config
     if getattr(args, "db", False) is True:
         handle_init_db_interactive()
         return
@@ -309,7 +309,7 @@ def handle_init_command(args):
         # Check for smart flag
         if hasattr(args, 'smart') and args.smart:
             try:
-                from common import smart_init
+                from src.common import smart_init
                 smart_init.generate_smart_ignore()
             except ImportError:
                 # Fallback import
@@ -326,7 +326,7 @@ def handle_status_command(args, defaults, credentials_module):
         project_name = get_project_name(resolve_path(args.source))
         args.vault_path = str(get_default_vault_path(project_name))
 
-    from projectclone import status_engine
+    from src.projectclone import status_engine
 
     # Prepare cloud config if cloud flag is set
     cloud_config = {}
@@ -360,7 +360,7 @@ def handle_diff_command(args, defaults):
 
     source_root = os.getcwd()
 
-    from projectclone import diff_engine
+    from src.projectclone import diff_engine
     diff_engine.show_diff(
         source_root,
         resolve_path(args.vault_path),
@@ -375,7 +375,7 @@ def handle_checkout_command(args, defaults):
 
     source_root = os.getcwd()
 
-    from projectclone import checkout_engine
+    from src.projectclone import checkout_engine
     checkout_engine.checkout_file(
         source_root,
         resolve_path(args.vault_path),
@@ -404,7 +404,7 @@ def handle_browse_command(args, defaults):
         sys.exit(1)
 
 def handle_list_command(args, defaults, credentials_module):
-    from projectclone import list_engine
+    from src.projectclone import list_engine
     if args.cloud:
         if not args.bucket:
             console.print("[error]Error: --bucket must be specified in CLI or pv.toml for cloud listing.[/error]")
@@ -447,7 +447,7 @@ def handle_push_command(args, defaults, credentials_module, notifier=None):
         sys.exit(1)
 
     console.print(f"[dim]Authenticated via {source}[/dim]")
-    from projectclone import sync_engine
+    from src.projectclone import sync_engine
     try:
         sync_engine.sync_to_cloud(
             resolve_path(args.vault_path),
@@ -485,7 +485,7 @@ def handle_pull_command(args, defaults, credentials_module):
         sys.exit(1)
 
     console.print(f"[dim]Authenticated via {source}[/dim]")
-    from projectclone import sync_engine
+    from src.projectclone import sync_engine
     sync_engine.sync_from_cloud(
         resolve_path(args.vault_path),
         args.bucket,
@@ -501,7 +501,7 @@ def handle_check_integrity_command(args, defaults):
         project_name = get_project_name(os.getcwd())
         args.vault_path = str(get_default_vault_path(project_name))
 
-    from projectclone import integrity_engine
+    from src.projectclone import integrity_engine
     if not integrity_engine.verify_vault(resolve_path(args.vault_path)):
         sys.exit(1)
 
@@ -511,11 +511,11 @@ def handle_gc_command(args, defaults):
         project_name = get_project_name(os.getcwd())
         args.vault_path = str(get_default_vault_path(project_name))
 
-    from projectclone import gc_engine
+    from src.projectclone import gc_engine
     gc_engine.run_garbage_collection(resolve_path(args.vault_path), args.dry_run)
 
 def handle_verify_clone_command(args, defaults):
-    from projectclone import verify_engine
+    from src.projectclone import verify_engine
 
     original = resolve_path(args.original_path)
     clone = resolve_path(args.clone_path)

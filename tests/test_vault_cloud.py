@@ -27,8 +27,8 @@ def mock_credentials():
 def test_vault_cloud_sync_triggered(mock_args, mock_credentials):
     """Test that sync_to_cloud is called when --cloud is passed to vault."""
     
-    with patch("projectclone.cas_engine.backup_to_vault") as mock_backup, \
-         patch("projectclone.sync_engine.sync_to_cloud") as mock_sync, \
+    with patch("src.projectclone.cas_engine.backup_to_vault") as mock_backup, \
+         patch("src.projectclone.sync_engine.sync_to_cloud") as mock_sync, \
          patch("src.common.console.console.print"):
         
         mock_backup.return_value = "/vault/manifest.json"
@@ -50,8 +50,8 @@ def test_vault_cloud_missing_bucket(mock_args, mock_credentials):
     """Test error message if bucket is missing."""
     mock_args.bucket = None
     
-    with patch("projectclone.cas_engine.backup_to_vault") as mock_backup, \
-         patch("projectclone.sync_engine.sync_to_cloud") as mock_sync, \
+    with patch("src.projectclone.cas_engine.backup_to_vault") as mock_backup, \
+         patch("src.projectclone.sync_engine.sync_to_cloud") as mock_sync, \
          patch("src.common.console.console.print") as mock_print:
         
         handle_vault_command(mock_args, defaults={}, notifier=None, credentials_module=mock_credentials)

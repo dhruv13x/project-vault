@@ -26,7 +26,7 @@ class TestDatabaseEngine(unittest.TestCase):
 
     @patch("src.projectvault.engines.db_engine.subprocess.run")
     @patch("src.projectvault.engines.db_engine.subprocess.Popen")
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     @patch("tempfile.NamedTemporaryFile")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.unlink")
@@ -68,12 +68,12 @@ class TestDatabaseEngine(unittest.TestCase):
 
     @patch("src.projectvault.engines.db_engine.subprocess.run")
     @patch("src.projectvault.engines.db_engine.subprocess.Popen")
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     @patch("tempfile.NamedTemporaryFile")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.unlink")
     @patch("os.replace")
-    @patch("projectclone.sync_engine.sync_to_cloud")
+    @patch("src.projectclone.sync_engine.sync_to_cloud")
     def test_backup_with_cloud(self, mock_sync, mock_replace, mock_unlink, mock_temp_dir, mock_temp_file, mock_backup_to_vault, mock_popen, mock_run):
         # Setup mocks
         mock_run.return_value.returncode = 0
@@ -107,7 +107,7 @@ class TestDatabaseEngine(unittest.TestCase):
         self.assertEqual(self.engine.config["password"], "env_pass")
 
     @patch("src.projectvault.engines.db_engine.subprocess.run")
-    @patch("projectrestore.restore_engine.restore_snapshot")
+    @patch("src.projectrestore.restore_engine.restore_snapshot")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
     @patch("src.projectvault.engines.db_engine.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
@@ -137,7 +137,7 @@ class TestDatabaseEngine(unittest.TestCase):
         mock_popen.assert_called()
 
     @patch("src.projectvault.engines.db_engine.subprocess.run")
-    @patch("projectrestore.restore_engine.restore_snapshot")
+    @patch("src.projectrestore.restore_engine.restore_snapshot")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
     @patch("src.projectvault.engines.db_engine.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')
@@ -164,7 +164,7 @@ class TestDatabaseEngine(unittest.TestCase):
         self.assertEqual(mock_popen.call_count, 3)
 
     @patch("src.projectvault.engines.db_engine.subprocess.run")
-    @patch("projectrestore.restore_engine.restore_snapshot")
+    @patch("src.projectrestore.restore_engine.restore_snapshot")
     @patch("tempfile.TemporaryDirectory")
     @patch("os.walk")
     @patch("src.projectvault.engines.db_engine.open", new_callable=unittest.mock.mock_open, read_data='{"snapshot_type": "database"}')

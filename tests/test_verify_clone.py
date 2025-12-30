@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../projectclone")))
 
 try:
-    from projectclone import verify_engine
+    from src.projectclone import verify_engine
 except ImportError:
     verify_engine = None
 

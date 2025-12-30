@@ -1,7 +1,7 @@
 # tests/test_status_safety.py
 
 import pytest
-from projectclone import status_engine
+from src.projectclone import status_engine
 from unittest.mock import MagicMock, patch
 
 def test_status_same_source_and_vault(tmp_path, capsys):

@@ -43,9 +43,10 @@ class TestCliDispatch:
         assert cli_dispatch.resolve_path(None) is None
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     def test_handle_vault_command_missing_path(self, mock_backup, mock_get_default, mock_console, mock_exit, tmp_path):
-        args = MagicMock(vault_path=None, source="/source", name=None)
+        args = MagicMock(vault_path=None, source="/source")
+        args.name = None
         mock_get_default.return_value = str(tmp_path / "default_vault")
         mock_backup.return_value = "manifest"
         
@@ -55,20 +56,22 @@ class TestCliDispatch:
         mock_backup.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     def test_handle_vault_command_success(self, mock_backup, mock_console):
         args = MagicMock(vault_path="vault", source="source")
         args.name = "name"
+        args.include_db = False
         mock_backup.return_value = "manifest_path"
 
         cli_dispatch.handle_vault_command(args, {})
 
         mock_backup.assert_called_once()
 
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     def test_handle_vault_command_with_hooks(self, mock_backup, mock_console):
         args = MagicMock(vault_path="vault", source="source")
         args.name = "name"
+        args.include_db = False
         defaults = {"hooks": {"pre-backup": "echo hello"}}
 
         cli_dispatch.handle_vault_command(args, defaults)
@@ -77,10 +80,11 @@ class TestCliDispatch:
         _, kwargs = mock_backup.call_args
         assert kwargs['hooks'] == defaults['hooks']
 
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     def test_handle_vault_command_exception(self, mock_backup, mock_console):
         args = MagicMock(vault_path="vault", source="source")
         args.name = "name"
+        args.include_db = False
         mock_backup.side_effect = Exception("error")
         notifier = MagicMock()
 
@@ -95,7 +99,7 @@ class TestCliDispatch:
             cli_dispatch.handle_vault_restore_command(args, {})
         mock_exit.assert_called_with(1)
 
-    @patch("projectrestore.restore_engine.restore_snapshot")
+    @patch("src.projectrestore.restore_engine.restore_snapshot")
     def test_handle_vault_restore_command_success(self, mock_restore, mock_console):
         args = MagicMock(dest="dest", manifest="manifest")
 
@@ -103,7 +107,7 @@ class TestCliDispatch:
 
         mock_restore.assert_called_once()
 
-    @patch("projectrestore.restore_engine.restore_snapshot")
+    @patch("src.projectrestore.restore_engine.restore_snapshot")
     def test_handle_vault_restore_command_with_hooks(self, mock_restore, mock_console):
         args = MagicMock(dest="dest", manifest="manifest")
         defaults = {"hooks": {"pre-restore": "echo hello"}}
@@ -179,7 +183,7 @@ class TestCliDispatch:
         assert "[tool.project-vault]" in captured.out
 
     def test_handle_init_command_default(self, capsys):
-        # We need to mock 'common.config' and 'common.smart_init'
+        # We need to mock 'src.common.config' and 'src.common.smart_init'
         # Since these are imported inside the function, we patch sys.modules
 
         args = MagicMock(pyproject=False, smart=True)
@@ -188,9 +192,9 @@ class TestCliDispatch:
         mock_smart = MagicMock()
 
         with patch.dict(sys.modules, {
-            'common.config': mock_config,
-            'common.smart_init': mock_smart,
-            'common': MagicMock(config=mock_config, smart_init=mock_smart)
+            'src.common.config': mock_config,
+            'src.common.smart_init': mock_smart,
+            'src.common': MagicMock(config=mock_config, smart_init=mock_smart)
         }):
             cli_dispatch.handle_init_command(args)
 
@@ -199,7 +203,7 @@ class TestCliDispatch:
         mock_smart.generate_smart_ignore.assert_called_once()
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.status_engine.show_status")
+    @patch("src.projectclone.status_engine.show_status")
     def test_handle_status_command_missing_path(self, mock_status, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, source="/source", bucket=None)
         mock_get_default.return_value = str(tmp_path / "default_vault")
@@ -210,13 +214,13 @@ class TestCliDispatch:
         mock_status.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.status_engine.show_status")
+    @patch("src.projectclone.status_engine.show_status")
     def test_handle_status_command_success(self, mock_status, mock_console):
         args = MagicMock(vault_path="vault", source="source", bucket=None)
         cli_dispatch.handle_status_command(args, {}, None)
         mock_status.assert_called_once()
 
-    @patch("projectclone.status_engine.show_status")
+    @patch("src.projectclone.status_engine.show_status")
     def test_handle_status_command_cloud(self, mock_status, mock_console):
         args = MagicMock(vault_path="vault", source="source", bucket="bucket", endpoint="endpoint")
         creds_module = MagicMock()
@@ -227,7 +231,7 @@ class TestCliDispatch:
         mock_status.assert_called_once()
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.diff_engine.show_diff")
+    @patch("src.projectclone.diff_engine.show_diff")
     def test_handle_diff_command_missing_path(self, mock_diff, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, file="file")
         mock_get_default.return_value = str(tmp_path / "default_vault")
@@ -238,14 +242,14 @@ class TestCliDispatch:
         mock_diff.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.diff_engine.show_diff")
+    @patch("src.projectclone.diff_engine.show_diff")
     def test_handle_diff_command_success(self, mock_diff, mock_console):
         args = MagicMock(vault_path="vault", file="file")
         cli_dispatch.handle_diff_command(args, {})
         mock_diff.assert_called_once()
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.checkout_engine.checkout_file")
+    @patch("src.projectclone.checkout_engine.checkout_file")
     def test_handle_checkout_command_missing_path(self, mock_checkout, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, file="file", force=False)
         mock_get_default.return_value = str(tmp_path / "default_vault")
@@ -256,7 +260,7 @@ class TestCliDispatch:
         mock_checkout.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.checkout_engine.checkout_file")
+    @patch("src.projectclone.checkout_engine.checkout_file")
     def test_handle_checkout_command_success(self, mock_checkout, mock_console):
         args = MagicMock(vault_path="vault", file="file", force=False)
         cli_dispatch.handle_checkout_command(args, {})
@@ -300,7 +304,7 @@ class TestCliDispatch:
             cli_dispatch.handle_list_command(args, {}, creds_module)
         mock_exit.assert_called_with(1)
 
-    @patch("projectclone.list_engine.list_cloud_snapshots")
+    @patch("src.projectclone.list_engine.list_cloud_snapshots")
     def test_handle_list_command_cloud_success(self, mock_list, mock_console):
         args = MagicMock(cloud=True, bucket="bucket", endpoint="endpoint")
         creds_module = MagicMock()
@@ -311,7 +315,7 @@ class TestCliDispatch:
         mock_list.assert_called_once()
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.list_engine.list_local_snapshots")
+    @patch("src.projectclone.list_engine.list_local_snapshots")
     def test_handle_list_command_local_missing_path(self, mock_list, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(cloud=False, vault_path=None)
         mock_get_default.return_value = str(tmp_path / "default_vault")
@@ -322,7 +326,7 @@ class TestCliDispatch:
         mock_list.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.list_engine.list_local_snapshots")
+    @patch("src.projectclone.list_engine.list_local_snapshots")
     def test_handle_list_command_local_success(self, mock_list, mock_console):
         args = MagicMock(cloud=False, vault_path="vault")
         cli_dispatch.handle_list_command(args, {}, None)
@@ -360,7 +364,7 @@ class TestCliDispatch:
             cli_dispatch.handle_push_command(args, {}, creds_module)
         mock_exit.assert_called_with(1)
 
-    @patch("projectclone.sync_engine.sync_to_cloud")
+    @patch("src.projectclone.sync_engine.sync_to_cloud")
     def test_handle_push_command_success(self, mock_sync, mock_console):
         args = MagicMock(vault_path="vault", bucket="bucket", endpoint="endpoint", dry_run=False)
         creds_module = MagicMock()
@@ -372,7 +376,7 @@ class TestCliDispatch:
         mock_sync.assert_called_once()
         notifier.send_message.assert_called_once()
 
-    @patch("projectclone.sync_engine.sync_to_cloud")
+    @patch("src.projectclone.sync_engine.sync_to_cloud")
     def test_handle_push_command_exception(self, mock_sync, mock_console):
         args = MagicMock(vault_path="vault", bucket="bucket", endpoint="endpoint", dry_run=False)
         creds_module = MagicMock()
@@ -410,7 +414,7 @@ class TestCliDispatch:
             cli_dispatch.handle_pull_command(args, {}, creds_module)
         mock_exit.assert_called_with(1)
 
-    @patch("projectclone.sync_engine.sync_from_cloud")
+    @patch("src.projectclone.sync_engine.sync_from_cloud")
     def test_handle_pull_command_success(self, mock_sync, mock_console):
         args = MagicMock(vault_path="vault", bucket="bucket", endpoint="endpoint", dry_run=False)
         creds_module = MagicMock()
@@ -421,7 +425,7 @@ class TestCliDispatch:
         mock_sync.assert_called_once()
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.integrity_engine.verify_vault")
+    @patch("src.projectclone.integrity_engine.verify_vault")
     def test_handle_check_integrity_command_missing_path(self, mock_verify, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None)
         mock_get_default.return_value = str(tmp_path / "default_vault")
@@ -433,7 +437,7 @@ class TestCliDispatch:
         mock_verify.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.integrity_engine.verify_vault")
+    @patch("src.projectclone.integrity_engine.verify_vault")
     def test_handle_check_integrity_command_success(self, mock_verify, mock_console, mock_exit):
         args = MagicMock(vault_path="vault")
         mock_verify.return_value = True
@@ -441,7 +445,7 @@ class TestCliDispatch:
         mock_verify.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.integrity_engine.verify_vault")
+    @patch("src.projectclone.integrity_engine.verify_vault")
     def test_handle_check_integrity_command_fail(self, mock_verify, mock_console, mock_exit):
         args = MagicMock(vault_path="vault")
         mock_verify.return_value = False
@@ -450,7 +454,7 @@ class TestCliDispatch:
         mock_exit.assert_called_with(1)
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.gc_engine.run_garbage_collection")
+    @patch("src.projectclone.gc_engine.run_garbage_collection")
     def test_handle_gc_command_missing_path(self, mock_gc, mock_get_default, mock_console, mock_exit, tmp_path):
         args = MagicMock(vault_path=None, dry_run=True)
         mock_get_default.return_value = str(tmp_path / "default_vault")
@@ -461,7 +465,7 @@ class TestCliDispatch:
         mock_gc.assert_called_once()
         mock_exit.assert_not_called()
 
-    @patch("projectclone.gc_engine.run_garbage_collection")
+    @patch("src.projectclone.gc_engine.run_garbage_collection")
     def test_handle_gc_command_success(self, mock_gc, mock_console):
         args = MagicMock(vault_path="vault", dry_run=False)
         cli_dispatch.handle_gc_command(args, {})
@@ -474,7 +478,7 @@ class TestCliDispatch:
             cli_dispatch.handle_verify_clone_command(args, {})
         mock_exit.assert_called_with(1)
 
-    @patch("projectclone.verify_engine.verify_directories")
+    @patch("src.projectclone.verify_engine.verify_directories")
     def test_handle_verify_clone_command_success(self, mock_verify, mock_console, fs):
         args = MagicMock(original_path="/orig", clone_path="/clone")
         fs.create_dir("/orig")
@@ -486,7 +490,7 @@ class TestCliDispatch:
 
         mock_verify.assert_called_with(os.path.abspath("/orig"), os.path.abspath("/clone"))
 
-    @patch("projectclone.verify_engine.verify_directories")
+    @patch("src.projectclone.verify_engine.verify_directories")
     def test_handle_verify_clone_command_fail(self, mock_verify, mock_console, mock_exit, fs):
         args = MagicMock(original_path="/orig", clone_path="/clone")
         fs.create_dir("/orig")

@@ -1,12 +1,12 @@
 import sys
 import pytest
 from unittest.mock import MagicMock, patch
-from projectclone import cli
+from src.projectclone import cli
 
 class TestProjectCloneCliCoverage:
     def test_main_no_args_prints_help(self, capsys):
         # projectclone without args prints help and exits 0 in parse_args
-        with patch.object(sys, 'argv', ['projectclone']):
+        with patch.object(sys, 'argv', ['src.projectclone']):
              with pytest.raises(SystemExit) as exc:
                  cli.main()
              assert exc.value.code == 0
@@ -18,7 +18,7 @@ class TestProjectCloneCliCoverage:
         # 'invalid_command' is interpreted as 'short_note'.
         # It then prompts for confirmation because it's about to backup.
         # We mock input to abort.
-        with patch.object(sys, 'argv', ['projectclone', 'invalid_command']):
+        with patch.object(sys, 'argv', ['src.projectclone', 'invalid_command']):
              with patch("builtins.input", side_effect=["n"]): # Abort by user
                  with pytest.raises(SystemExit) as exc:
                      cli.main()
@@ -31,14 +31,14 @@ class TestProjectCloneCliCoverage:
         # cli.main() does NOT catch KeyboardInterrupt (it propagates).
         # So we expect KeyboardInterrupt.
         with patch("argparse.ArgumentParser.parse_args", side_effect=KeyboardInterrupt):
-             with patch.object(sys, 'argv', ['projectclone', 'status']):
+             with patch.object(sys, 'argv', ['src.projectclone', 'status']):
                  with pytest.raises(KeyboardInterrupt):
                      cli.main()
 
     def test_main_general_exception(self, capsys):
         # Patch something inside main to raise Exception
-        with patch("projectclone.cli.ensure_dir", side_effect=Exception("Crash")):
-             with patch.object(sys, 'argv', ['projectclone', 'note', '--yes']):
+        with patch("src.projectclone.cli.ensure_dir", side_effect=Exception("Crash")):
+             with patch.object(sys, 'argv', ['src.projectclone', 'note', '--yes']):
                  with pytest.raises(SystemExit) as exc:
                      cli.main()
                  assert exc.value.code == 2

@@ -84,7 +84,7 @@ class TestSrcCliExtended:
         # assert "Project Vault" in out
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     def test_vault_command(self, mock_backup, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "vault", ".", "/tmp/vault"]
@@ -93,7 +93,7 @@ class TestSrcCliExtended:
         mock_backup.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.cas_engine.backup_to_vault")
+    @patch("src.projectclone.cas_engine.backup_to_vault")
     def test_vault_command_no_path(self, mock_backup, mock_config, capsys):
         mock_config.return_value = {}
         test_args = ["pv", "vault", "."]
@@ -107,7 +107,7 @@ class TestSrcCliExtended:
         assert ".project_vault" in args[1]
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectrestore.restore_engine.restore_snapshot")
+    @patch("src.projectrestore.restore_engine.restore_snapshot")
     def test_vault_restore_command(self, mock_restore, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "vault-restore", "manifest.json", "/tmp/dest"]
@@ -120,7 +120,7 @@ class TestSrcCliExtended:
         mock_config.return_value = {}
         test_args = ["pv", "init"]
         with patch.object(sys, 'argv', test_args), \
-             patch("src.cli.config.generate_init_file") as mock_gen:
+             patch("src.common.config.generate_init_file") as mock_gen:
              cli.main()
              mock_gen.assert_called()
 
@@ -134,7 +134,7 @@ class TestSrcCliExtended:
         assert "[tool.project-vault]" in out
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.status_engine.show_status")
+    @patch("src.projectclone.status_engine.show_status")
     def test_status_command(self, mock_status, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "status", ".", "/tmp/vault"]
@@ -143,7 +143,7 @@ class TestSrcCliExtended:
         mock_status.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.diff_engine.show_diff")
+    @patch("src.projectclone.diff_engine.show_diff")
     def test_diff_command(self, mock_diff, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "diff", "file.txt", "/tmp/vault"]
@@ -152,7 +152,7 @@ class TestSrcCliExtended:
         mock_diff.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.checkout_engine.checkout_file")
+    @patch("src.projectclone.checkout_engine.checkout_file")
     def test_checkout_command(self, mock_checkout, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "checkout", "file.txt", "/tmp/vault"]
@@ -161,7 +161,7 @@ class TestSrcCliExtended:
         mock_checkout.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.list_engine.list_local_snapshots")
+    @patch("src.projectclone.list_engine.list_local_snapshots")
     def test_list_command_local(self, mock_list, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "list", "/tmp/vault"]
@@ -170,7 +170,7 @@ class TestSrcCliExtended:
         mock_list.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.list_engine.list_cloud_snapshots")
+    @patch("src.projectclone.list_engine.list_cloud_snapshots")
     @patch("src.cli.credentials.resolve_credentials")
     def test_list_command_cloud(self, mock_creds, mock_list, mock_config):
         mock_config.return_value = {}
@@ -181,7 +181,7 @@ class TestSrcCliExtended:
         mock_list.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.sync_engine.sync_to_cloud")
+    @patch("src.projectclone.sync_engine.sync_to_cloud")
     @patch("src.cli.credentials.resolve_credentials")
     def test_push_command(self, mock_creds, mock_sync, mock_config):
         mock_config.return_value = {}
@@ -192,7 +192,7 @@ class TestSrcCliExtended:
         mock_sync.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.sync_engine.sync_from_cloud")
+    @patch("src.projectclone.sync_engine.sync_from_cloud")
     @patch("src.cli.credentials.resolve_credentials")
     def test_pull_command(self, mock_creds, mock_sync, mock_config):
         mock_config.return_value = {}
@@ -203,7 +203,7 @@ class TestSrcCliExtended:
         mock_sync.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.integrity_engine.verify_vault")
+    @patch("src.projectclone.integrity_engine.verify_vault")
     def test_integrity_command(self, mock_verify, mock_config):
         mock_config.return_value = {}
         mock_verify.return_value = True
@@ -213,7 +213,7 @@ class TestSrcCliExtended:
         mock_verify.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.gc_engine.run_garbage_collection")
+    @patch("src.projectclone.gc_engine.run_garbage_collection")
     def test_gc_command(self, mock_gc, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "gc", "/tmp/vault"]
@@ -222,7 +222,7 @@ class TestSrcCliExtended:
         mock_gc.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectclone.cli.main")
+    @patch("src.projectclone.cli.main")
     def test_legacy_backup_command(self, mock_clone, mock_config):
         mock_config.return_value = {}
         test_args = ["pv", "backup", "note"]
@@ -231,7 +231,7 @@ class TestSrcCliExtended:
         mock_clone.assert_called()
 
     @patch("src.cli.config.load_project_config")
-    @patch("projectrestore.cli.main")
+    @patch("src.projectrestore.cli.main")
     @patch("src.cli.credentials.get_full_env", return_value={})
     def test_legacy_restore_command(self, mock_get_env, mock_restore, mock_config):
         mock_config.return_value = {}

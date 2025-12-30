@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 
 from src.common.console import console
 from src.projectvault.drivers.postgres import PostgresDriver
-from projectclone import cas_engine
+from src.projectclone import cas_engine
 
 # Map driver names to classes
 DRIVERS = {
@@ -224,7 +224,7 @@ class DatabaseEngine:
 
             if bucket and key_id and app_key:
                 console.print(f"[info]Pushing to cloud bucket '{bucket}'...[/info]")
-                from projectclone import sync_engine
+                from src.projectclone import sync_engine
                 try:
                     sync_engine.sync_to_cloud(
                         vault_path,
@@ -263,7 +263,7 @@ class DatabaseEngine:
 
         # 2. Extract Dump
         # We need to restore the file from the vault to a temp location.
-        from projectrestore import restore_engine
+        from src.projectrestore import restore_engine
 
         with tempfile.TemporaryDirectory() as temp_dir:
             restore_engine.restore_snapshot(manifest_path, temp_dir)

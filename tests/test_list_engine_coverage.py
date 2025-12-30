@@ -3,9 +3,9 @@ import pytest
 from unittest.mock import MagicMock, patch
 # Import directly assuming sys.path is correct for installed package or root
 try:
-    from projectclone import list_engine
+    from src.projectclone import list_engine
 except ImportError:
-    from projectclone.projectclone import list_engine
+    from src.projectclone.projectclone import list_engine
 
 class TestListEngineCoverage:
     def test_list_local_snapshots_empty(self, capsys, tmp_path):

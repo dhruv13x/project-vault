@@ -6,7 +6,7 @@ import sys
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 
-from projectclone import diff_engine, list_engine, status_engine, backup
+from src.projectclone import diff_engine, list_engine, status_engine, backup
 from src import cli
 
 class TestFinalCoverage:
@@ -50,7 +50,7 @@ class TestFinalCoverage:
             "total_scanned": 100
         }
 
-        with patch("projectclone.status_engine.get_local_status", return_value=stat):
+        with patch("src.projectclone.status_engine.get_local_status", return_value=stat):
             status_engine.show_status(str(src), str(vault))
 
         captured = capsys.readouterr()
@@ -129,12 +129,12 @@ class TestFinalCoverage:
 
     def test_cli_check_integrity_command(self, tmp_path):
         with patch.object(sys, 'argv', ['pv', 'check-integrity', str(tmp_path)]):
-            with patch("projectclone.integrity_engine.verify_vault") as mock_verify:
+            with patch("src.projectclone.integrity_engine.verify_vault") as mock_verify:
                  cli.main()
                  mock_verify.assert_called()
 
     def test_cli_gc_command(self, tmp_path):
         with patch.object(sys, 'argv', ['pv', 'gc', str(tmp_path)]):
-             with patch("projectclone.gc_engine.run_garbage_collection") as mock_gc:
+             with patch("src.projectclone.gc_engine.run_garbage_collection") as mock_gc:
                  cli.main()
                  mock_gc.assert_called()

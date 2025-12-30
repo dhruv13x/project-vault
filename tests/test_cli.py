@@ -32,21 +32,17 @@ def capture_stdout(capsys):
 
 @pytest.fixture
 def mock_projectclone_cli():
-    # Because cli.py imports projectclone.cli dynamically using importlib,
-    # simply patching sys.modules might not work if importlib bypasses it or if we don't mock it correctly for importlib.
-    # However, importlib.import_module generally checks sys.modules.
-    # The issue might be that cli.py handles ImportErrors.
-
     mock_cli = MagicMock()
+    original_import = importlib.import_module
 
-    # We need to make sure importlib.import_module('projectclone.cli') returns this mock
+    # We need to make sure importlib.import_module('src.projectclone.cli') returns this mock
     with patch('importlib.import_module') as mock_import:
         def side_effect(name):
-            if name == 'projectclone.cli':
+            if name == 'src.projectclone.cli' or name == 'src.projectclone.cli':
                 return mock_cli
-            if name == 'projectrestore.cli':
+            if name == 'src.projectrestore.cli' or name == 'src.projectrestore.cli':
                 raise ImportError("Not this one")
-            return importlib.__import__(name)
+            return original_import(name)
 
         mock_import.side_effect = side_effect
         yield mock_cli
@@ -54,46 +50,77 @@ def mock_projectclone_cli():
 @pytest.fixture
 def mock_projectrestore_cli():
     mock_cli = MagicMock()
+    original_import = importlib.import_module
     with patch('importlib.import_module') as mock_import:
         def side_effect(name):
-            if name == 'projectrestore.cli':
+            if name == 'src.projectrestore.cli' or name == 'src.projectrestore.cli':
                 return mock_cli
-            if name == 'projectclone.cli':
+            if name == 'src.projectclone.cli' or name == 'src.projectclone.cli':
                 raise ImportError("Not this one")
-            return importlib.__import__(name)
+            return original_import(name)
 
         mock_import.side_effect = side_effect
         yield mock_cli
 
 @pytest.fixture
 def mock_cas_engine():
-    with patch.dict('sys.modules', {'projectclone': MagicMock(), 'projectclone.cas_engine': MagicMock()}):
-        yield sys.modules['projectclone'].cas_engine
+    with patch.dict('sys.modules', {
+        'src.projectclone': MagicMock(), 
+        'src.projectclone.cas_engine': MagicMock(),
+        'src.projectclone': MagicMock(),
+        'src.projectclone.cas_engine': MagicMock()
+    }):
+        yield sys.modules['src.projectclone'].cas_engine
 
 @pytest.fixture
 def mock_restore_engine():
-    with patch.dict('sys.modules', {'projectrestore': MagicMock(), 'projectrestore.restore_engine': MagicMock()}):
-        yield sys.modules['projectrestore'].restore_engine
+    with patch.dict('sys.modules', {
+        'src.projectrestore': MagicMock(), 
+        'src.projectrestore.restore_engine': MagicMock(),
+        'src.projectrestore': MagicMock(),
+        'src.projectrestore.restore_engine': MagicMock()
+    }):
+        yield sys.modules['src.projectrestore'].restore_engine
 
 @pytest.fixture
 def mock_list_engine():
-    with patch.dict('sys.modules', {'projectclone': MagicMock(), 'projectclone.list_engine': MagicMock()}):
-        yield sys.modules['projectclone'].list_engine
+    with patch.dict('sys.modules', {
+        'src.projectclone': MagicMock(), 
+        'src.projectclone.list_engine': MagicMock(),
+        'src.projectclone': MagicMock(),
+        'src.projectclone.list_engine': MagicMock()
+    }):
+        yield sys.modules['src.projectclone'].list_engine
 
 @pytest.fixture
 def mock_sync_engine():
-    with patch.dict('sys.modules', {'projectclone': MagicMock(), 'projectclone.sync_engine': MagicMock()}):
-        yield sys.modules['projectclone'].sync_engine
+    with patch.dict('sys.modules', {
+        'src.projectclone': MagicMock(), 
+        'src.projectclone.sync_engine': MagicMock(),
+        'src.projectclone': MagicMock(),
+        'src.projectclone.sync_engine': MagicMock()
+    }):
+        yield sys.modules['src.projectclone'].sync_engine
 
 @pytest.fixture
 def mock_integrity_engine():
-    with patch.dict('sys.modules', {'projectclone': MagicMock(), 'projectclone.integrity_engine': MagicMock()}):
-        yield sys.modules['projectclone'].integrity_engine
+    with patch.dict('sys.modules', {
+        'src.projectclone': MagicMock(), 
+        'src.projectclone.integrity_engine': MagicMock(),
+        'src.projectclone': MagicMock(),
+        'src.projectclone.integrity_engine': MagicMock()
+    }):
+        yield sys.modules['src.projectclone'].integrity_engine
 
 @pytest.fixture
 def mock_gc_engine():
-    with patch.dict('sys.modules', {'projectclone': MagicMock(), 'projectclone.gc_engine': MagicMock()}):
-        yield sys.modules['projectclone'].gc_engine
+    with patch.dict('sys.modules', {
+        'src.projectclone': MagicMock(), 
+        'src.projectclone.gc_engine': MagicMock(),
+        'src.projectclone': MagicMock(),
+        'src.projectclone.gc_engine': MagicMock()
+    }):
+        yield sys.modules['src.projectclone'].gc_engine
 
 @pytest.fixture
 def mock_full_env():
@@ -385,7 +412,7 @@ class TestMainCli:
 
     def test_init_default(self, mock_sys_exit, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'init']
-        with patch('cli.config.generate_init_file') as mock_gen:
+        with patch('src.common.config.generate_init_file') as mock_gen:
             main()
             mock_gen.assert_called_once_with("pv.toml")
 
@@ -468,7 +495,7 @@ class TestMainCli:
         mock_list_engine.list_local_snapshots.assert_called_once_with(os.path.abspath('/vault'))
 
     @patch("src.common.paths.get_default_vault_path")
-    @patch("projectclone.list_engine.list_local_snapshots")
+    @patch("src.projectclone.list_engine.list_local_snapshots")
     def test_list_local_missing_vault(self, mock_list, mock_get_default, mock_sys_exit, capture_stdout, mock_config_load, mock_full_env):
         sys.argv = ['pv', 'list']
         mock_config_load.return_value = {'vault_path': None}
@@ -617,13 +644,13 @@ class TestCheckCloudEnv:
 
     def test_keyboard_interrupt_exits_with_130(self, mock_sys_exit, mock_config_load):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path']
-        with patch('projectclone.cas_engine.backup_to_vault', side_effect=KeyboardInterrupt):
+        with patch('src.projectclone.cas_engine.backup_to_vault', side_effect=KeyboardInterrupt):
             main()
             mock_sys_exit.assert_called_once_with(130)
 
     def test_generic_exception_exits_with_1(self, mock_sys_exit, capture_stdout, mock_config_load):
         sys.argv = ['pv', 'vault', 'my_source', '/my_vault_path']
-        with patch('projectclone.cas_engine.backup_to_vault', side_effect=ValueError("Test error")):
+        with patch('src.projectclone.cas_engine.backup_to_vault', side_effect=ValueError("Test error")):
             main()
             output = capture_stdout()
             assert "Error: Test error" in output

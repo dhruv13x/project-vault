@@ -49,7 +49,7 @@ class TestCliExtended:
     # --- CLI Interactive Errors ---
     def test_cli_vault_no_path(self, capsys):
         with patch("src.common.config.load_project_config", return_value={}):
-            with patch("projectclone.cas_engine.backup_to_vault") as mock_vault:
+            with patch("src.projectclone.cas_engine.backup_to_vault") as mock_vault:
                 with patch.object(sys, 'argv', ['pv', 'vault', '.']):
                     # Should NOT exit, but call backup with default path
                     cli.main()
@@ -67,7 +67,7 @@ class TestCliExtended:
 
     def test_vault_command_success(self):
         with patch("src.common.config.load_project_config", return_value={'vault_path': '/tmp/vault'}):
-            with patch("projectclone.cas_engine.backup_to_vault") as mock_vault:
+            with patch("src.projectclone.cas_engine.backup_to_vault") as mock_vault:
                  with patch.object(sys, 'argv', ['pv', 'vault', 'src', 'dst']):
                      cli.main()
                      mock_vault.assert_called()
@@ -81,7 +81,7 @@ class TestCliExtended:
             cli._real_main()
         mock_check_cloud_env.assert_called_once()
 
-    @patch('projectclone.gc_engine.run_garbage_collection')
+    @patch('src.projectclone.gc_engine.run_garbage_collection')
     def test_gc_command(self, mock_run_garbage_collection):
         """
         Test the 'gc' command.
@@ -90,7 +90,7 @@ class TestCliExtended:
             cli._real_main()
         mock_run_garbage_collection.assert_called_once()
 
-    @patch('projectclone.integrity_engine.verify_vault')
+    @patch('src.projectclone.integrity_engine.verify_vault')
     def test_check_integrity_command(self, mock_verify_vault):
         """
         Test the 'check-integrity' command.
@@ -122,7 +122,7 @@ class TestCliExtended:
         assert "Crash" in captured.out or "Crash" in captured.err
 
     def test_handle_list_command_b2(self):
-         with patch("projectclone.list_engine.list_cloud_snapshots") as mock_list:
+         with patch("src.projectclone.list_engine.list_cloud_snapshots") as mock_list:
             with patch("src.cli.credentials.resolve_credentials", return_value=("key", "secret", "CLI")):
                 with patch.object(sys, 'argv', ['pv', 'list', '--cloud', '--bucket', 'my-bucket']):
                      cli.main()
@@ -242,14 +242,14 @@ class TestCliExtended:
         assert "Usage:" in captured.out
 
     def test_handle_push_command(self):
-        with patch("projectclone.sync_engine.sync_to_cloud") as mock_sync:
+        with patch("src.projectclone.sync_engine.sync_to_cloud") as mock_sync:
             with patch("src.cli.credentials.resolve_credentials", return_value=("key", "secret", "CLI")):
                 with patch.object(sys, 'argv', ['pv', 'push', '.', '--bucket', 'b', '--dry-run']):
                      cli.main()
                 mock_sync.assert_called()
 
     def test_handle_pull_command(self):
-        with patch("projectclone.sync_engine.sync_from_cloud") as mock_sync:
+        with patch("src.projectclone.sync_engine.sync_from_cloud") as mock_sync:
             with patch("src.cli.credentials.resolve_credentials", return_value=("key", "secret", "CLI")):
                 with patch.object(sys, 'argv', ['pv', 'pull', '.', '--bucket', 'b']):
                      cli.main()
@@ -286,7 +286,7 @@ class TestCliExtended:
              pass
 
     def test_handle_push_exception(self, capsys):
-         with patch("projectclone.sync_engine.sync_to_cloud", side_effect=Exception("Upload Failed")):
+         with patch("src.projectclone.sync_engine.sync_to_cloud", side_effect=Exception("Upload Failed")):
             with patch("src.cli.credentials.resolve_credentials", return_value=("key", "secret", "CLI")):
                  with pytest.raises(SystemExit):
                      with patch.object(sys, 'argv', ['pv', 'push', '.', '--bucket', 'b']):

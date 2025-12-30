@@ -54,22 +54,11 @@ try:
 except ImportError:
     RichHelpFormatter = argparse.HelpFormatter
 
-# Ensure we can import sibling packages
-# We are in src/
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# Add projectclone/src and projectrestore/src to sys.path
-sys.path.insert(0, os.path.join(current_dir, "../projectclone/src"))
-sys.path.insert(0, os.path.join(current_dir, "../projectrestore/src"))
-# Add project-vault-core/src to sys.path
-sys.path.insert(0, os.path.join(current_dir, "../project-vault-core/src"))
-# Add src/ itself for backward compatibility (though strictly we shouldn't need it for core anymore)
-sys.path.insert(0, current_dir)
-
 # Attempt to import common, handling both editable/local and installed package scenarios
 try:
-    import common.config as config
-    import common.credentials as credentials
-    from common.banner import print_logo
+    from src.common import config
+    from src.common import credentials
+    from src.common.banner import print_logo
 except ImportError:
     # Fallback: try relative import if running as script/module inside src
     try:
@@ -77,17 +66,10 @@ except ImportError:
         from .common import credentials
         from .common.banner import print_logo
     except ImportError:
-        # Final fallback for some editable installs or specific layouts
-        try:
-            from src.common import config
-            from src.common import credentials
-            from src.common.banner import print_logo
-        except ImportError:
-            # If all fails, assume we are running from installed package context where src is not in path
-            # but the package root is.
-            import config
-            import credentials
-            from common.banner import print_logo
+        # Final fallback
+        import common.config as config
+        import common.credentials as credentials
+        from common.banner import print_logo
 
 
 def resolve_path(path_str):
@@ -162,7 +144,7 @@ def _real_main():
         subcommand = sys.argv[1]
         try:
             module_name = "projectclone" if subcommand == "backup" else "projectrestore"
-            cli_module = importlib.import_module(f"{module_name}.cli")
+            cli_module = importlib.import_module(f"src.{module_name}.cli")
         except ImportError as e:
             console.print(f"[error]Error executing command '{subcommand}': {e}[/error]")
             sys.exit(1)
