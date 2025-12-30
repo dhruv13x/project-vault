@@ -4,7 +4,7 @@ import json
 import base64
 import urllib.request
 from typing import Tuple, Optional, Dict, Any
-import common.config as config_loader
+from . import config as config_loader
 
 def load_env_file(filepath: str = ".env") -> Dict[str, str]:
     """
