@@ -35,10 +35,8 @@
 git clone https://github.com/dhruv13x/project-vault.git
 cd project-vault
 
-# Install in editable mode
+# Install in editable mode with development tools
 pip install -e .[dev]
-pip install -e ./projectclone
-pip install -e ./projectrestore
 ```
 
 ### Run
@@ -129,32 +127,31 @@ Common arguments for `pv list`:
 
 ## 🏗️ Architecture
 
-Project Vault follows a monorepo structure, orchestrating specialized engines for backup (`projectclone`) and restore (`projectrestore`).
+Project Vault is a self-contained monorepo orchestrating specialized internal engines for backup and restore.
 
 ### Directory Tree
 
 ```text
 project-vault/
-├── src/                        # Main CLI and Orchestration Logic
+├── src/                        # Source Code
 │   ├── cli.py                  # Entry Point (pv)
 │   ├── cli_dispatch.py         # Command Routing
 │   ├── common/                 # Shared Utilities (Config, Crypto, S3/B2)
-│   ├── tui.py                  # Textual User Interface
-│   └── projectvault/           # Database & Engine Logic
-├── projectclone/               # Backup Engine (Snapshot Creation)
-│   └── src/projectclone/       # Core Backup Logic
-├── projectrestore/             # Restore Engine (Snapshot Application)
-    └── src/projectrestore/     # Core Restore Logic
+│   ├── projectclone/           # Backup Engine (Snapshot Creation)
+│   ├── projectrestore/         # Restore Engine (Snapshot Application)
+│   ├── projectvault/           # Database & Driver Logic
+│   └── tui.py                  # Textual User Interface
+└── tests/                      # Orchestration & Integration Tests
 ```
 
 ### Data Flow
 
 1.  **Input**: User runs `pv vault` in a project directory.
-2.  **Filter**: `src/common/ignore.py` applies `.pvignore` rules.
-3.  **Capture**: `projectclone` scans files, computes hashes, and stores unique objects in the CAS (Content Addressable Storage).
+2.  **Filter**: Rules from `.pvignore` are applied.
+3.  **Capture**: The internal **Clone Engine** scans files, computes hashes, and stores unique objects in the CAS (Content Addressable Storage).
 4.  **Manifest**: A JSON manifest is created, linking file paths to CAS objects.
-5.  **Sync (Optional)**: `pv push` uploads new CAS objects and the manifest to the configured Cloud Storage (S3/B2).
-6.  **Restore**: `pv vault-restore` (or `projectrestore`) reads the manifest, fetches objects from CAS, and reconstructs the directory state.
+5.  **Sync (Optional)**: `pv push` uploads new CAS objects and the manifest to Cloud Storage (S3/B2).
+6.  **Restore**: `pv vault-restore` uses the **Restore Engine** to read the manifest, fetch objects from CAS, and reconstruct the directory state.
 
 ---
 
@@ -190,10 +187,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
     ```bash
     git clone https://github.com/dhruv13x/project-vault
     cd project-vault
-    # Install main package and sub-packages in editable mode
+    # Install package in editable mode with dev dependencies
     pip install -e .[dev]
-    pip install -e ./projectclone
-    pip install -e ./projectrestore
     ```
 
 2.  **Run Tests**:
