@@ -213,7 +213,7 @@ def _real_main():
     parser.add_argument(
         '-v', '--version',
         action='version',
-        version='%(prog)s 2.0.0', # Placeholder version
+        version='%(prog)s 8.0.0', 
         help="Show program's version number and exit."
     )
     

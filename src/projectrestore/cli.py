@@ -294,7 +294,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--include-db", action="store_true", help="Automatically restore bundled database if found")
     p.add_argument("--force", action="store_true", help="Force database schema recreation if bundled DB is restored")
     p.add_argument(
-        "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
+        "--version", action="version", version=f"%(prog)s 10.0.0", help="Show program's version number and exit"
     )
     
     # If no arguments are given (or only -h), show the custom help

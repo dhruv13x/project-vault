@@ -268,7 +268,7 @@ def parse_args():
     p.add_argument("--bucket", help="target cloud bucket name (required if --cloud is used)")
     p.add_argument("--endpoint", help="target cloud endpoint URL (optional)")
     p.add_argument(
-        "--version", action="version", version=f"%(prog)s 1.0.0", help="Show program's version number and exit"
+        "--version", action="version", version=f"%(prog)s 10.0.0", help="Show program's version number and exit"
     )
     
     # A simple check to show help if no arguments are given.
