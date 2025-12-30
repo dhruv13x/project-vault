@@ -1,5 +1,11 @@
 # Changelog
 
+## [10.0.0] - 2025-12-30
+### Documentation
+- update README to reflect monorepo structure and single package install
+### Other Changes
+- update
+
 ## [9.0.0] - 2025-12-30
 ### Other Changes
 - update
