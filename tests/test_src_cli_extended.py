@@ -105,7 +105,7 @@ class TestCliExtended:
                  cli.main()
          captured = capsys.readouterr()
          # argparse 'version' action output goes to stdout or stderr
-         assert "pv 2.0.0" in captured.out or "pv 2.0.0" in captured.err
+         assert "pv 8.0.0" in captured.out or "pv 8.0.0" in captured.err
 
     def test_main_keyboard_interrupt(self):
         with patch("src.cli._real_main", side_effect=KeyboardInterrupt):

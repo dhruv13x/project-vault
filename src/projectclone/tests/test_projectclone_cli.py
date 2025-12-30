@@ -103,7 +103,7 @@ class TestCLI:
                 mock_sys_exit.assert_called_with(0)
 
             output = capture_stdout()
-            assert "1.0.0" in output
+            assert "10.0.0" in output
 
     def test_keyboard_interrupt_clean_exit(self, mock_sys_argv, mock_cwd, mock_walk_stats, tmp_path, mock_sys_exit):
         """Mock backup action to raise KeyboardInterrupt and verify handling."""
