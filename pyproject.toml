@@ -1,6 +1,6 @@
 [project]
 name = "project-vault"
-version = "12.0.0"
+version = "13.0.0"
 description = "The Unified Project Lifecycle Manager: Backup, Restore, and Teleport Projects Anywhere."
 readme = "README.md"
 requires-python = ">=3.10"
