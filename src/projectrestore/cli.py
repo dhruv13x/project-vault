@@ -75,7 +75,7 @@ def _collect_bundled_database_dumps(extract_dir: Path) -> tuple[list[Path], list
     dbnames: list[str] = []
 
     metadata_path = extract_dir / ".pv" / "databases.json"
-    if metadata_path.exists():
+    if metadata_path.is_file():
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             dbnames = list(metadata.get("dbnames", []))
@@ -83,12 +83,18 @@ def _collect_bundled_database_dumps(extract_dir: Path) -> tuple[list[Path], list
             dbnames = []
 
     databases_dir = extract_dir / ".pv" / "databases"
-    if databases_dir.exists():
-        dumps.extend(sorted(p for p in databases_dir.iterdir() if p.is_file() and (p.name.endswith(".sql") or p.name.endswith(".sql.gz"))))
+    if databases_dir.is_dir():
+        dumps.extend(
+            sorted(
+                p
+                for p in databases_dir.iterdir()
+                if p.is_file() and (p.name.endswith(".sql") or p.name.endswith(".sql.gz"))
+            )
+        )
 
     for legacy_name in ("database_dump.sql.gz", "database_dump.sql"):
         legacy_path = extract_dir / ".pv" / legacy_name
-        if legacy_path.exists():
+        if legacy_path.is_file():
             dumps.append(legacy_path)
 
     # Remove duplicates while preserving order
