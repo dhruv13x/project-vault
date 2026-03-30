@@ -1,5 +1,7 @@
 # Changelog
 
+## [12.0.0] - 2026-03-30
+
 ## [11.0.0] - 2025-12-30
 ### Bug Fixes
 - **common:** use relative import in credentials.py to fix ModuleNotFoundError
