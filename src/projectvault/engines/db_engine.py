@@ -56,6 +56,14 @@ class DatabaseEngine:
         safe_name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in dbname)
         return f"{safe_name}.sql.gz"
 
+    def _database_name_from_dump_path(self, dump_path: str) -> str:
+        name = os.path.basename(dump_path)
+        if name.endswith(".sql.gz"):
+            return name[:-7]
+        if name.endswith(".sql"):
+            return name[:-4]
+        return name
+
     def _get_backup_targets(self) -> list[str]:
         configured = self.config.get("dbnames")
         if configured:
@@ -257,15 +265,23 @@ class DatabaseEngine:
                 db_targets = []
 
             dump_files.sort(key=lambda item: item[0])
-            if db_targets and len(db_targets) == len(dump_files):
-                dump_plan = list(zip(db_targets, dump_files))
+            derived_targets = [(self._database_name_from_dump_path(path), (path, is_compressed)) for path, is_compressed in dump_files]
+
+            if len(dump_files) > 1 and db_targets:
+                target_set = set(db_targets)
+                if all(derived_name in target_set for derived_name, _ in derived_targets):
+                    dump_plan = [(derived_name, dump_info) for derived_name, dump_info in derived_targets]
+                elif len(db_targets) == len(dump_files):
+                    dump_plan = list(zip(db_targets, dump_files))
+                else:
+                    raise ValueError("Snapshot contains multiple database dumps but restore targets could not be mapped.")
+            elif len(dump_files) > 1:
+                dump_plan = [(derived_name, dump_info) for derived_name, dump_info in derived_targets]
             elif len(dump_files) == 1:
-                target = db_targets[0] if db_targets else self.config.get("dbname")
+                target = db_targets[0] if db_targets else self.config.get("dbname") or derived_targets[0][0]
                 if not target:
                     raise ValueError("Restore target database is unknown.")
                 dump_plan = [(target, dump_files[0])]
-            else:
-                raise ValueError("Snapshot contains multiple database dumps but restore targets could not be mapped.")
 
             for target_db, (dump_file, is_compressed) in dump_plan:
                 console.print(f"[info]Applying database dump to {target_db}...[/info]")

@@ -32,6 +32,7 @@ import argparse
 import logging
 import sys
 import os
+import json
 from pathlib import Path
 from rich.console import Console
 from rich.logging import RichHandler
@@ -67,6 +68,38 @@ LOG = logging.getLogger("extract_backup")
 DEFAULT_BACKUP_DIR = Path.home() / "project_backups"
 DEFAULT_PATTERN = "*-bot_platform-*.tar.gz"
 DEFAULT_LOCKFILE = Path("/tmp/extract_backup.pid")
+
+
+def _collect_bundled_database_dumps(extract_dir: Path) -> tuple[list[Path], list[str]]:
+    dumps: list[Path] = []
+    dbnames: list[str] = []
+
+    metadata_path = extract_dir / ".pv" / "databases.json"
+    if metadata_path.exists():
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            dbnames = list(metadata.get("dbnames", []))
+        except Exception:
+            dbnames = []
+
+    databases_dir = extract_dir / ".pv" / "databases"
+    if databases_dir.exists():
+        dumps.extend(sorted(p for p in databases_dir.iterdir() if p.is_file() and (p.name.endswith(".sql") or p.name.endswith(".sql.gz"))))
+
+    for legacy_name in ("database_dump.sql.gz", "database_dump.sql"):
+        legacy_path = extract_dir / ".pv" / legacy_name
+        if legacy_path.exists():
+            dumps.append(legacy_path)
+
+    # Remove duplicates while preserving order
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for dump in dumps:
+        if dump not in seen:
+            deduped.append(dump)
+            seen.add(dump)
+
+    return deduped, dbnames
 
 
 def print_restore_help():
@@ -423,10 +456,10 @@ def main() -> int:
             LOG.info("Extraction complete. Total files extracted: %d", total)
             
             # --- Bundled Database Restore Integration ---
-            bundled_db_path = extract_dir / ".pv" / "database_dump.sql.gz"
-            if bundled_db_path.exists():
+            bundled_db_paths, bundled_dbnames = _collect_bundled_database_dumps(extract_dir)
+            if bundled_db_paths:
                 console.print(Panel(Text.from_markup(
-                    f"📦 [bold cyan]Bundled Database Dump Detected:[/] {bundled_db_path.name}\n"
+                    f"📦 [bold cyan]Bundled Database Dump Detected:[/] {len(bundled_db_paths)} dump file(s)\n"
                     "Project includes an atomic database state."
                 ), border_style="cyan"))
                 
@@ -456,61 +489,40 @@ def main() -> int:
                             
                             # We need a dummy manifest for the DB Engine to work?
                             # Actually, we can use a temporary manifest.
-                            import json
                             import tempfile
-                            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tf:
-                                manifest_data = {
-                                    "snapshot_type": "database",
-                                    "files": {
-                                        str(bundled_db_path.name): {
-                                            "type": "file" # Minimal requirements
-                                        }
-                                    }
-                                }
-                                json.dump(manifest_data, tf)
-                                tf_path = tf.name
-                            
+
                             try:
-                                # We need to point vault_path to where the dump is?
-                                # Engine expects objects dir or similar.
-                                # Let's create a temporary vault structure.
                                 with tempfile.TemporaryDirectory() as tmp_vault:
-                                    # Link objects or place the dump
                                     tmp_obj_dir = Path(tmp_vault) / "objects"
                                     tmp_obj_dir.mkdir()
-                                    
-                                    # In our new engine, restore_snapshot is called.
-                                    # It reads from manifest, finds file, etc.
-                                    # If we use a "database" type manifest, it looks for dump.
-                                    
-                                    # Let's bypass the manifest logic and call restore directly if we can,
-                                    # or just make the manifest happy.
-                                    
-                                    # Mocking a content-addressable vault for the engine:
-                                    import hashlib
-                                    with open(bundled_db_path, "rb") as f:
-                                        file_hash = hashlib.sha256(f.read()).hexdigest()
-                                    
-                                    # Create the 'object' file
-                                    import shutil
-                                    shutil.copy2(bundled_db_path, tmp_obj_dir / file_hash)
-                                    
-                                    # Update manifest with real hash
-                                    manifest_data["files"] = {
-                                        "database_dump.sql.gz": {
-                                            "hash": file_hash,
-                                            "size": bundled_db_path.stat().st_size
-                                        }
+
+                                    from src.common import cas
+
+                                    manifest_data = {
+                                        "snapshot_type": "database",
+                                        "database_config": {
+                                            "dbnames": bundled_dbnames,
+                                        },
+                                        "files": {},
                                     }
-                                    with open(tf_path, 'w') as f:
-                                        json.dump(manifest_data, f)
-                                    
-                                    # Now the engine can restore from this tmp_vault
-                                    engine.restore(tf_path, tmp_vault, force=getattr(args, "force", False))
+
+                                    for bundled_db_path in bundled_db_paths:
+                                        file_hash = cas.store_object(str(bundled_db_path), str(tmp_obj_dir))
+                                        manifest_data["files"][bundled_db_path.name] = {
+                                            "hash": file_hash,
+                                            "size": bundled_db_path.stat().st_size,
+                                        }
+
+                                    manifest_dir = Path(tmp_vault) / "snapshots" / "db_restore"
+                                    manifest_dir.mkdir(parents=True, exist_ok=True)
+                                    tf_path = manifest_dir / "manifest.json"
+                                    with open(tf_path, 'w', encoding="utf-8") as f:
+                                        json.dump(manifest_data, f, indent=2)
+
+                                    engine.restore(str(tf_path), tmp_vault, force=getattr(args, "force", False))
                                     LOG.info("✅ Bundled database restored successfully.")
                             finally:
-                                if os.path.exists(tf_path):
-                                    os.unlink(tf_path)
+                                pass
                     except Exception as e:
                         LOG.error("❌ Failed to restore bundled database: %s", e)
                 else:

@@ -447,41 +447,51 @@ def main():
                 
                 manifest_path = engine.backup(db_vault, foldername)
 
-                # Find the dump file in objects, then restore the original dump
-                # bytes before bundling so the archive contains a real .sql.gz file
-                # instead of the zstd-wrapped CAS object.
-                found_dump = None
-                restored_dump = None
+                # Restore all dump files from the mini-vault so the archive contains
+                # the original dump bytes instead of zstd-wrapped CAS objects.
+                restored_dumps = []
                 obj_dir = os.path.join(db_vault, "objects")
                 if os.path.exists(obj_dir):
-                    for fn in os.listdir(obj_dir):
-                        # The object name is a hash, we don't know which one is the dump
-                        # BUT since it's a new mini-vault, it should be the only one?
-                        # Or we check manifest
-                        import json
-                        with open(manifest_path, 'r') as f:
-                            m_data = json.load(f)
-                        # In DB snapshots, we put the dump in 'files' mapping?
-                        # Let's check db_engine.py
-                        for rel_path, meta in m_data.get('files', {}).items():
-                            if rel_path.endswith('.sql.gz') or rel_path.endswith('.sql'):
-                                from src.common import cas
+                    import json
+                    from src.common import cas
 
-                                found_dump = os.path.join(obj_dir, meta['hash'])
-                                restored_dump = os.path.join(
-                                    db_temp_dir,
-                                    "database_dump.sql.gz" if rel_path.endswith(".sql.gz") else "database_dump.sql",
-                                )
-                                cas.restore_object_to_file(found_dump, restored_dump)
-                                break
+                    with open(manifest_path, 'r') as f:
+                        m_data = json.load(f)
 
-                if found_dump and restored_dump:
-                    db_dump_path = restored_dump
-                    # For archives, we map it to .pv/database_dump.sql.gz
-                    extra_files[".pv/database_dump.sql.gz"] = Path(db_dump_path)
+                    for rel_path, meta in m_data.get('files', {}).items():
+                        if rel_path.endswith('.sql.gz') or rel_path.endswith('.sql'):
+                            found_dump = os.path.join(obj_dir, meta['hash'])
+                            restored_name = os.path.basename(rel_path)
+                            restored_dump = os.path.join(db_temp_dir, "db_dumps", restored_name)
+                            cas.restore_object_to_file(found_dump, restored_dump)
+                            restored_dumps.append((rel_path, restored_dump))
+
+                    if restored_dumps:
+                        metadata_path = os.path.join(db_temp_dir, "databases.json")
+                        with open(metadata_path, "w", encoding="utf-8") as mf:
+                            json.dump(
+                                {
+                                    "dbnames": m_data.get("database_config", {}).get("dbnames", []),
+                                    "files": [os.path.basename(rel_path) for rel_path, _ in restored_dumps],
+                                },
+                                mf,
+                                indent=2,
+                            )
+                        extra_files[".pv/databases.json"] = Path(metadata_path)
+
+                if restored_dumps:
+                    for rel_path, restored_dump in restored_dumps:
+                        extra_files[f".pv/databases/{os.path.basename(rel_path)}"] = Path(restored_dump)
+
+                    # Keep the legacy single-file path for backward compatibility when
+                    # only one dump was bundled.
+                    if len(restored_dumps) == 1:
+                        _, db_dump_path = restored_dumps[0]
+                        extra_files[".pv/database_dump.sql.gz"] = Path(db_dump_path)
+
                     print(f"Database dump prepared for bundling.")
                 else:
-                    raise RuntimeError("Could not locate database dump in temporary vault.")
+                    raise RuntimeError("Could not locate database dump(s) in temporary vault.")
 
             except Exception as e:
                 print(f"ERROR during database bundling: {e}")
