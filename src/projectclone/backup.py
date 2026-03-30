@@ -413,7 +413,7 @@ def copy_tree_atomic(
         try:
             with sha_fp.open("w", encoding="utf-8") as sf:
                 for p in tmp_dir.rglob("*"):
-                    if p.is_file():
+                    if p.is_file() and p != sha_fp:
                         try:
                             rel = p.relative_to(tmp_dir)
                             h = sha256_of_file(p)
