@@ -52,6 +52,34 @@ class DatabaseEngine:
                     console.print(f"[dim]Resolved database password from {key}[/dim]")
                     return
 
+    def _database_file_name(self, dbname: str) -> str:
+        safe_name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in dbname)
+        return f"{safe_name}.sql.gz"
+
+    def _get_backup_targets(self) -> list[str]:
+        configured = self.config.get("dbnames")
+        if configured:
+            if isinstance(configured, str):
+                return [configured]
+            return list(configured)
+
+        if self.config.get("all_databases"):
+            list_cmd = self.driver.get_database_list_command(self.config)
+            result = subprocess.run(
+                list_cmd,
+                env=self.env,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+        if self.config.get("dbname"):
+            return [self.config["dbname"]]
+
+        raise ValueError("No database target configured. Set 'dbname', 'dbnames', or 'all_databases = true'.")
+
     def backup(self, vault_path: str, project_name: str, cloud_sync: bool = False, credentials_module=None, bucket: str = None, endpoint: str = None) -> str:
         """
         Backs up the database to the vault.
@@ -61,133 +89,70 @@ class DatabaseEngine:
 
         console.print(f"[info]Starting database backup for {project_name} using {self.config.get('driver')}...[/info]")
 
-        # 1. Prepare Command
-        cmd = self.driver.get_backup_command(self.config)
+        targets = self._get_backup_targets()
+        if not targets:
+            raise ValueError("No databases found to back up.")
 
-        # 2. Execute and Stream to Vault
-        # We need to capture the output of the subprocess and write it to a file in the object store.
-        # Since CAS engine works with files, we probably need to stream to a temp file or
-        # extend CAS engine to accept a stream.
-        # Looking at cas_engine.py might be useful.
-        # For now, let's stream to a temp file in the vault's temp area or system temp,
-        # then register it with CAS.
+        for dbname in targets:
+            verify_cmd = self.driver.get_verification_command(self.config, dbname=dbname)
+            try:
+                subprocess.run(verify_cmd, env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as e:
+                raise ConnectionError(f"Could not connect to database '{dbname}': {e.stderr.decode()}")
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        blob_name = f"db_dump_{timestamp}.sql"
-
-        # We can use a temp file
-        import tempfile
-
-        # Check connection first
-        verify_cmd = self.driver.get_verification_command(self.config)
-        try:
-            subprocess.run(verify_cmd, env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError as e:
-            raise ConnectionError(f"Could not connect to database: {e.stderr.decode()}")
-
-        console.print("[info]Streaming database dump...[/info]")
-
-        # Create temp file for the DUMP (uncompressed stream, but piped to compression)
-        # Requirement: "Backups must be streamed via pipes... to avoid writing large uncompressed SQL files to disk."
-        # CAS engine normally compresses data.
-        # But we need to feed it a file.
-        # If we write UNCOMPRESSED sql to disk, we violate the rule.
-        # So we should compress ON THE FLY to a temp file, and tell CAS to store that.
-        # BUT cas_engine.store_object() RE-COMPRESSES by default (Zstd).
-        # Double compression is inefficient but safe.
-        # However, if we compress here with gzip, then CAS compresses with zstd, it's weird.
-        # Ideally, we write the UNCOMPRESSED stream to a NamedPipe (FIFO) and let CAS read from it?
-        # CAS `store_object` reads from file path and calculates hash.
-        # Hashing requires reading the whole stream.
-        # If we use a pipe, we can read it once.
-        # But `store_object` reads twice? No, `calculate_hash` reads it, then `store_object` reads again to compress/copy.
-        # So a FIFO won't work easily because you can't rewind it.
-
-        # Compromise: We stream the dump through GZIP (or ZSTD) to a temp file on disk.
-        # This satisfies "avoid writing large UNCOMPRESSED SQL files".
-        # Then we let CAS ingest that compressed file.
-        # CAS will hash the COMPRESSED content (treating it as the file).
-        # And CAS will likely ZSTD compress it AGAIN (overhead but okay).
-        # To avoid double compression, we might need a raw storage mode in CAS, but let's stick to standard flow for now.
-
-        # Actually, let's use gzip for the dump file itself. It's standard for SQL dumps.
-        # The file stored in CAS will be "dump.sql.gz".
+        console.print(f"[info]Streaming database dump for {len(targets)} database(s)...[/info]")
 
         import gzip
 
-        # We write to a temp file, but we do it via python streaming to ensure we don't hold it all in RAM.
-        # And we don't write uncompressed data to disk.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for dbname in targets:
+                final_dump_path = os.path.join(temp_dir, self._database_file_name(dbname))
+                cmd = self.driver.get_backup_command(self.config, dbname=dbname)
+                with open(final_dump_path, "wb") as tmp_file:
+                    with tempfile.TemporaryFile() as stderr_file:
+                        dump_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr_file, env=self.env, bufsize=-1)
+                        try:
+                            with gzip.GzipFile(mode='wb', fileobj=tmp_file) as gz_file:
+                                while True:
+                                    chunk = dump_process.stdout.read(64 * 1024)
+                                    if not chunk:
+                                        break
+                                    gz_file.write(chunk)
+                        except Exception as e:
+                            dump_process.kill()
+                            raise RuntimeError(f"Streaming compression failed for '{dbname}': {e}")
 
-        blob_name_gz = blob_name + ".gz"
+                        dump_process.wait()
 
-        with tempfile.NamedTemporaryFile(mode='wb', delete=False, prefix=f"pv_db_{project_name}_", suffix=".sql.gz") as tmp_file:
-            temp_path = tmp_file.name
+                        if dump_process.returncode != 0:
+                            stderr_file.seek(0)
+                            error_msg = stderr_file.read().decode('utf-8', errors='replace')
+                            raise RuntimeError(f"Database dump failed for '{dbname}': {error_msg}")
 
-            # Start the dump process with stdout piped
-            # Redirect stderr to a temp file to avoid deadlock
-            # Tip: Use bufsize=-1 (system default) to handle large streams efficiently
-            with tempfile.TemporaryFile() as stderr_file:
-                dump_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr_file, env=self.env, bufsize=-1)
+            manifest_path = cas_engine.backup_to_vault(
+                temp_dir,
+                vault_path,
+                project_name=project_name,
+                follow_symlinks=False
+            )
 
-                # Stream from dump -> gzip -> temp file
-                # We can use gzip.GzipFile wrapping the temp file
-                try:
-                    with gzip.GzipFile(mode='wb', fileobj=tmp_file) as gz_file:
-                        # Copy stream
-                        while True:
-                            chunk = dump_process.stdout.read(64 * 1024)
-                            if not chunk:
-                                break
-                            gz_file.write(chunk)
-                except Exception as e:
-                    dump_process.kill()
-                    os.unlink(temp_path)
-                    raise RuntimeError(f"Streaming compression failed: {e}")
+            with open(manifest_path, 'r') as f:
+                manifest_data = json.load(f)
 
-                dump_process.wait()
+            manifest_data['snapshot_type'] = 'database'
+            manifest_data['database_config'] = {
+                'driver': self.config.get('driver'),
+                'dbname': self.config.get('dbname'),
+                'dbnames': targets,
+                'all_databases': self.config.get('all_databases', False),
+                'host': self.config.get('host'),
+                'port': self.config.get('port'),
+                'user': self.config.get('user'),
+                'compression': 'gzip'
+            }
 
-                if dump_process.returncode != 0:
-                    # Read stderr for error message
-                    stderr_file.seek(0)
-                    error_msg = stderr_file.read().decode('utf-8', errors='replace')
-                    os.unlink(temp_path)
-                    raise RuntimeError(f"Database dump failed: {error_msg}")
-
-        try:
-            # 3. Register with CAS
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Move the compressed dump to the temp dir
-                final_dump_path = os.path.join(temp_dir, blob_name_gz)
-                os.replace(temp_path, final_dump_path)
-
-                # Use CAS engine to backup this directory
-                manifest_path = cas_engine.backup_to_vault(
-                    temp_dir,
-                    vault_path,
-                    project_name=project_name,
-                    follow_symlinks=False
-                )
-
-                # Tag metadata
-                with open(manifest_path, 'r') as f:
-                    manifest_data = json.load(f)
-
-                manifest_data['snapshot_type'] = 'database'
-                manifest_data['database_config'] = {
-                    'driver': self.config.get('driver'),
-                    'dbname': self.config.get('dbname'),
-                    'host': self.config.get('host'),
-                    'port': self.config.get('port'),
-                    'user': self.config.get('user'),
-                    'compression': 'gzip'
-                }
-
-                with open(manifest_path, 'w') as f:
-                    json.dump(manifest_data, f, indent=2)
-
-        finally:
-             if os.path.exists(temp_path):
-                 os.unlink(temp_path)
+            with open(manifest_path, 'w') as f:
+                json.dump(manifest_data, f, indent=2)
 
         console.print(f"[success]✅ Database snapshot created: {manifest_path}[/success]")
 
@@ -268,71 +233,83 @@ class DatabaseEngine:
         with tempfile.TemporaryDirectory() as temp_dir:
             restore_engine.restore_snapshot(manifest_path, temp_dir)
 
-            # Find the .sql file
-            dump_file = None
-            is_compressed = False
+            # Find SQL dump files restored from the snapshot
+            dump_files = []
             for root, dirs, files in os.walk(temp_dir):
                 for file in files:
                     if file.endswith(".sql"):
-                        dump_file = os.path.join(root, file)
-                        break
+                        dump_files.append((os.path.join(root, file), False))
                     elif file.endswith(".sql.gz"):
-                        dump_file = os.path.join(root, file)
-                        is_compressed = True
-                        break
+                        dump_files.append((os.path.join(root, file), True))
 
-            if not dump_file:
+            if not dump_files:
                 raise FileNotFoundError("No SQL dump file found in the snapshot.")
 
-            # 3. Prepare DB (Force / Check)
-            if force:
-                console.print("[warning]--force specified. Recreating database...[/warning]")
-                drop_cmd = self.driver.get_drop_command(self.config)
-                create_cmd = self.driver.get_create_command(self.config)
-
-                try:
-                    subprocess.run(drop_cmd, env=self.env, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    subprocess.run(create_cmd, env=self.env, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                except subprocess.CalledProcessError as e:
-                    raise RuntimeError(f"Failed to recreate database: {e.stderr.decode()}")
+            manifest_targets = manifest_data.get("database_config", {}).get("dbnames")
+            if manifest_targets:
+                db_targets = list(manifest_targets)
+            elif self.config.get("dbnames"):
+                configured_targets = self.config.get("dbnames")
+                db_targets = list(configured_targets) if isinstance(configured_targets, list) else [configured_targets]
+            elif self.config.get("dbname"):
+                db_targets = [self.config["dbname"]]
             else:
-                 # Verify connection
-                verify_cmd = self.driver.get_verification_command(self.config)
-                try:
-                    subprocess.run(verify_cmd, env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                except subprocess.CalledProcessError:
-                     raise ConnectionError("Target database not reachable. Use --force to attempt creation/reset.")
+                db_targets = []
 
-            # 4. Stream Restore
-            console.print("[info]Applying database dump...[/info]")
-            restore_cmd = self.driver.get_restore_command(self.config)
+            dump_files.sort(key=lambda item: item[0])
+            if db_targets and len(db_targets) == len(dump_files):
+                dump_plan = list(zip(db_targets, dump_files))
+            elif len(dump_files) == 1:
+                target = db_targets[0] if db_targets else self.config.get("dbname")
+                if not target:
+                    raise ValueError("Restore target database is unknown.")
+                dump_plan = [(target, dump_files[0])]
+            else:
+                raise ValueError("Snapshot contains multiple database dumps but restore targets could not be mapped.")
 
-            # Handle decompression if needed
-            try:
-                if is_compressed:
-                     # Use a pipe chain: gzip -dc dump_file | psql ...
-                     # This is more efficient and avoids Python-level streaming issues
-                     # Use a pipe chain: gzip -dc dump_file | sed filter | psql ...
-                     cat_cmd = ["gzip", "-dc", dump_file]
-                     cat_proc = subprocess.Popen(cat_cmd, stdout=subprocess.PIPE)
-                     
-                     # Filter out 'transaction_timeout' which causes errors on older server versions
-                     filter_cmd = ["sed", "s/SET transaction_timeout = 0;//g"]
-                     filter_proc = subprocess.Popen(filter_cmd, stdin=cat_proc.stdout, stdout=subprocess.PIPE)
-                     cat_proc.stdout.close()
-                     
-                     process = subprocess.Popen(restore_cmd, stdin=filter_proc.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
-                     filter_proc.stdout.close()
-                     stdout, stderr = process.communicate()
-                     cat_proc.wait()
+            for target_db, (dump_file, is_compressed) in dump_plan:
+                console.print(f"[info]Applying database dump to {target_db}...[/info]")
+
+                if force:
+                    console.print(f"[warning]--force specified. Recreating database '{target_db}'...[/warning]")
+                    drop_cmd = self.driver.get_drop_command(self.config, dbname=target_db)
+                    create_cmd = self.driver.get_create_command(self.config, dbname=target_db)
+
+                    try:
+                        subprocess.run(drop_cmd, env=self.env, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        subprocess.run(create_cmd, env=self.env, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    except subprocess.CalledProcessError as e:
+                        raise RuntimeError(f"Failed to recreate database '{target_db}': {e.stderr.decode()}")
                 else:
-                    with open(dump_file, 'rb') as f:
-                        process = subprocess.Popen(restore_cmd, stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
-                        stdout, stderr = process.communicate()
+                    verify_cmd = self.driver.get_verification_command(self.config, dbname=target_db)
+                    try:
+                        subprocess.run(verify_cmd, env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    except subprocess.CalledProcessError:
+                        raise ConnectionError(f"Target database '{target_db}' not reachable. Use --force to attempt creation/reset.")
 
-                if process.returncode != 0:
-                    raise RuntimeError(f"Restore failed: {stderr.decode(errors='replace')}")
-            except Exception as e:
-                raise RuntimeError(f"Restore execution failed: {e}")
+                restore_cmd = self.driver.get_restore_command(self.config, dbname=target_db)
+
+                try:
+                    if is_compressed:
+                        cat_cmd = ["gzip", "-dc", dump_file]
+                        cat_proc = subprocess.Popen(cat_cmd, stdout=subprocess.PIPE)
+
+                        filter_cmd = ["sed", "s/SET transaction_timeout = 0;//g"]
+                        filter_proc = subprocess.Popen(filter_cmd, stdin=cat_proc.stdout, stdout=subprocess.PIPE)
+                        cat_proc.stdout.close()
+
+                        process = subprocess.Popen(restore_cmd, stdin=filter_proc.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
+                        filter_proc.stdout.close()
+                        stdout, stderr = process.communicate()
+                        cat_proc.wait()
+                    else:
+                        with open(dump_file, 'rb') as f:
+                            process = subprocess.Popen(restore_cmd, stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env)
+                            stdout, stderr = process.communicate()
+
+                    if process.returncode != 0:
+                        raise RuntimeError(f"Restore failed for '{target_db}': {stderr.decode(errors='replace')}")
+                except Exception as e:
+                    raise RuntimeError(f"Restore execution failed for '{target_db}': {e}")
 
             console.print("[success]✅ Database restored successfully.[/success]")

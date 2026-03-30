@@ -87,6 +87,17 @@ endpoint = "https://s3.eu-central-003.backblazeb2.com"
 # pre_restore = "echo 'Restore starting...'"
 # post_restore = "echo 'Restore finished.'"
 
+# --- Database Backup Scope (Optional) ---
+# [database]
+# driver = "postgres"
+# host = "localhost"
+# port = 5432
+# user = "bot"
+# dbname = "botdb"
+# dbnames = ["botdb", "accounts_db", "forwarder_db"]
+# all_databases = true
+# password = "..." # Recommended: Set PV_DB_PASSWORD env var instead
+
 # --- Insecure Credentials Storage (Optional) ---
 # WARNING: Only enable this on secure, private machines.
 # [credentials]

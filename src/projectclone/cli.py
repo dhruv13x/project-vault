@@ -446,10 +446,12 @@ def main():
                 os.makedirs(db_vault, exist_ok=True)
                 
                 manifest_path = engine.backup(db_vault, foldername)
-                
-                # Find the dump file in objects
-                # (Simple way: look for .sql.gz in the temp dir's objects)
+
+                # Find the dump file in objects, then restore the original dump
+                # bytes before bundling so the archive contains a real .sql.gz file
+                # instead of the zstd-wrapped CAS object.
                 found_dump = None
+                restored_dump = None
                 obj_dir = os.path.join(db_vault, "objects")
                 if os.path.exists(obj_dir):
                     for fn in os.listdir(obj_dir):
@@ -463,11 +465,18 @@ def main():
                         # Let's check db_engine.py
                         for rel_path, meta in m_data.get('files', {}).items():
                             if rel_path.endswith('.sql.gz') or rel_path.endswith('.sql'):
+                                from src.common import cas
+
                                 found_dump = os.path.join(obj_dir, meta['hash'])
+                                restored_dump = os.path.join(
+                                    db_temp_dir,
+                                    "database_dump.sql.gz" if rel_path.endswith(".sql.gz") else "database_dump.sql",
+                                )
+                                cas.restore_object_to_file(found_dump, restored_dump)
                                 break
-                
-                if found_dump:
-                    db_dump_path = found_dump
+
+                if found_dump and restored_dump:
+                    db_dump_path = restored_dump
                     # For archives, we map it to .pv/database_dump.sql.gz
                     extra_files[".pv/database_dump.sql.gz"] = Path(db_dump_path)
                     print(f"Database dump prepared for bundling.")

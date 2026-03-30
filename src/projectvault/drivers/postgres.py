@@ -13,7 +13,26 @@ class PostgresDriver(BaseDatabaseDriver):
             env["PGPASSWORD"] = config["password"]
         return env
 
-    def get_backup_command(self, config: Dict) -> List[str]:
+    def _connection_args(self, config: Dict) -> List[str]:
+        args: List[str] = []
+        if config.get("host"):
+            args.extend(["-h", config["host"]])
+        if config.get("port"):
+            args.extend(["-p", str(config["port"])])
+        if config.get("user"):
+            args.extend(["-U", config["user"]])
+        return args
+
+    def _maintenance_db(self, config: Dict) -> str:
+        return config.get("maintenance_db") or "postgres"
+
+    def _target_db(self, config: Dict, dbname: str | None = None) -> str:
+        target = dbname or config.get("dbname")
+        if not target:
+            raise ValueError("Postgres database name is required.")
+        return target
+
+    def get_backup_command(self, config: Dict, dbname: str | None = None) -> List[str]:
         # pg_dump -h host -p port -U user -F c --no-owner --no-acl dbname
         # Using custom format (-F c) is good for pg_restore, but if we want
         # pure streaming compression we might use plain text or directory format?
@@ -37,13 +56,7 @@ class PostgresDriver(BaseDatabaseDriver):
         # Wait, the prompt says "Flow: Native Dump Utility -> Compression (Zstd/Gzip) -> Vault Storage".
         # This implies we should output uncompressed data from the DB tool.
 
-        cmd = ["pg_dump"]
-        if config.get("host"):
-            cmd.extend(["-h", config["host"]])
-        if config.get("port"):
-            cmd.extend(["-p", str(config["port"])])
-        if config.get("user"):
-            cmd.extend(["-U", config["user"]])
+        cmd = ["pg_dump", *self._connection_args(config)]
 
         # Ensure we output to stdout
         # -F p is default (plain text SQL script)
@@ -55,56 +68,38 @@ class PostgresDriver(BaseDatabaseDriver):
         cmd.append("--no-owner") # Skip restoration of object ownership
         cmd.append("--no-acl")   # Skip restoration of access privileges (grant/revoke)
 
-        cmd.append(config["dbname"])
+        cmd.append(self._target_db(config, dbname))
         return cmd
 
-    def get_restore_command(self, config: Dict) -> List[str]:
+    def get_restore_command(self, config: Dict, dbname: str | None = None) -> List[str]:
         # For plain text format, we use psql
-        cmd = ["psql"]
-        if config.get("host"):
-            cmd.extend(["-h", config["host"]])
-        if config.get("port"):
-            cmd.extend(["-p", str(config["port"])])
-        if config.get("user"):
-            cmd.extend(["-U", config["user"]])
+        cmd = ["psql", *self._connection_args(config)]
 
         cmd.append("-d")
-        cmd.append(config["dbname"])
+        cmd.append(self._target_db(config, dbname))
 
         # We might need -v ON_ERROR_STOP=1
         cmd.extend(["-v", "ON_ERROR_STOP=1"])
 
         return cmd
 
-    def get_verification_command(self, config: Dict) -> List[str]:
+    def get_verification_command(self, config: Dict, dbname: str | None = None) -> List[str]:
         # Check if we can connect
-        cmd = ["psql"]
-        if config.get("host"):
-            cmd.extend(["-h", config["host"]])
-        if config.get("port"):
-            cmd.extend(["-p", str(config["port"])])
-        if config.get("user"):
-            cmd.extend(["-U", config["user"]])
+        cmd = ["psql", *self._connection_args(config)]
 
         # Just run a simple query
-        cmd.extend(["-d", config["dbname"], "-c", "SELECT 1"])
+        cmd.extend(["-d", self._target_db(config, dbname), "-c", "SELECT 1"])
         return cmd
 
-    def get_drop_command(self, config: Dict) -> List[str]:
+    def get_drop_command(self, config: Dict, dbname: str | None = None) -> List[str]:
         # For Postgres, dropping the DB requires connecting to another DB (like postgres)
         # This might be dangerous or restricted.
         # A safer "clean" is often handled by --clean in pg_dump, but that only works if restore runs.
         # If we really want to DROP DATABASE, we need to connect to 'postgres' db.
 
-        cmd = ["psql"]
-        if config.get("host"):
-            cmd.extend(["-h", config["host"]])
-        if config.get("port"):
-            cmd.extend(["-p", str(config["port"])])
-        if config.get("user"):
-            cmd.extend(["-U", config["user"]])
-
-        cmd.extend(["-d", "postgres", "-c", f"DROP DATABASE IF EXISTS \"{config['dbname']}\""])
+        target_db = self._target_db(config, dbname)
+        cmd = ["psql", *self._connection_args(config)]
+        cmd.extend(["-d", self._maintenance_db(config), "-c", f"DROP DATABASE IF EXISTS \"{target_db}\""])
         # And create it again?
         # The prompt says: "Implement a --force flag to drop/recreate the schema for a clean state."
         # Schema usually means the tables inside the DB, or the DB itself.
@@ -112,14 +107,19 @@ class PostgresDriver(BaseDatabaseDriver):
 
         return cmd
 
-    def get_create_command(self, config: Dict) -> List[str]:
-        cmd = ["psql"]
-        if config.get("host"):
-            cmd.extend(["-h", config["host"]])
-        if config.get("port"):
-            cmd.extend(["-p", str(config["port"])])
-        if config.get("user"):
-            cmd.extend(["-U", config["user"]])
+    def get_create_command(self, config: Dict, dbname: str | None = None) -> List[str]:
+        target_db = self._target_db(config, dbname)
+        cmd = ["psql", *self._connection_args(config)]
+        cmd.extend(["-d", self._maintenance_db(config), "-c", f"CREATE DATABASE \"{target_db}\""])
+        return cmd
 
-        cmd.extend(["-d", "postgres", "-c", f"CREATE DATABASE \"{config['dbname']}\""])
+    def get_database_list_command(self, config: Dict) -> List[str]:
+        cmd = ["psql", *self._connection_args(config)]
+        cmd.extend([
+            "-d",
+            self._maintenance_db(config),
+            "-At",
+            "-c",
+            "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres' ORDER BY datname",
+        ])
         return cmd

@@ -66,3 +66,9 @@ class TestPostgresDriver(unittest.TestCase):
         self.assertIn("postgres", cmd)
         self.assertTrue(any("CREATE DATABASE" in c for c in cmd))
         self.assertTrue(any("\"test_db\"" in c for c in cmd))
+
+    def test_get_database_list_command(self):
+        cmd = self.driver.get_database_list_command(self.config)
+        self.assertEqual(cmd[0], "psql")
+        self.assertIn("-At", cmd)
+        self.assertIn("SELECT datname FROM pg_database", cmd[-1])
