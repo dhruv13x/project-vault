@@ -5,10 +5,11 @@ from src import cli
 
 class TestSrcCliCoverageV3:
     def test_check_env_command(self, capsys):
-        with patch.object(sys, 'argv', ['pv', 'check-env']):
-             with patch("src.cli.check_cloud_env") as mock_check:
-                 cli.main()
-        mock_check.assert_called()
+        for cmd in ['check-env', 'doctor']:
+            with patch.object(sys, 'argv', ['pv', cmd]):
+                 with patch("src.cli.check_cloud_env") as mock_check:
+                     cli.main()
+            mock_check.assert_called()
 
     def test_browse_command_missing_dependency(self, capsys):
         # Simulate ImportError for textual

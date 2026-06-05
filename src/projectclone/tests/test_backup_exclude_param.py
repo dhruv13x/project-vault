@@ -65,6 +65,11 @@ def test_create_archive_exclude_glob(exclude_setup, tmp_path):
     # Add a python file in root
     (exclude_setup / "script.py").write_text("print('hello')")
     
+    # Add a python file in a non-ignored directory
+    non_ignored_dir = exclude_setup / "some_lib"
+    non_ignored_dir.mkdir()
+    (non_ignored_dir / "lib_file.py").write_text("library code")
+    
     create_archive(exclude_setup, archive, excludes=["*.py"])
     
     with tarfile.open(archive, "r:gz") as tar:
@@ -73,6 +78,6 @@ def test_create_archive_exclude_glob(exclude_setup, tmp_path):
         
         assert f"{top}/main.txt" in names
         assert f"{top}/script.py" not in names
-        # venv folder itself is NOT excluded, but lib_file.py inside it IS excluded
-        assert f"{top}/venv" in names
-        assert f"{top}/venv/lib_file.py" not in names
+        # some_lib folder itself is NOT excluded, but lib_file.py inside it IS excluded
+        assert f"{top}/some_lib" in names
+        assert f"{top}/some_lib/lib_file.py" not in names

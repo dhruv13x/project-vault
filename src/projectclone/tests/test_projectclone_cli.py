@@ -49,6 +49,18 @@ class TestCLI:
             mock_input.assert_not_called()
             mock_copy.assert_called_once()
 
+    def test_cli_short_yes_flag_skips_prompt(self, mock_sys_argv, mock_cwd, mock_walk_stats, tmp_path):
+        sys.argv = ['create_backup.py', 'test_note', '-y', '--dest', str(tmp_path)]
+
+        with patch('src.projectclone.cli.copy_tree_atomic') as mock_copy, \
+             patch('builtins.input') as mock_input, \
+             patch('src.projectclone.cli.print_logo'):
+
+            cli.main()
+
+            mock_input.assert_not_called()
+            mock_copy.assert_called_once()
+
     def test_manifest_and_sha_args(self, mock_sys_argv, mock_cwd, mock_walk_stats, tmp_path):
         """Test with combinations like --manifest --manifest-sha."""
         sys.argv = ['create_backup.py', 'test_note', '--yes', '--dest', str(tmp_path), '--manifest', '--manifest-sha']

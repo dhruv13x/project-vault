@@ -63,7 +63,7 @@ from .cleanup import cleanup_state
 from .rotation import rotate_backups
 from .scanner import walk_stats
 from .utils import sanitize_token, timestamp, human_size, ensure_dir, make_unique_path
-from .banner import print_logo
+from src.common.banner import print_logo
 from . import cas_engine
 
 
@@ -91,7 +91,7 @@ This command creates a backup of a project. It can operate in three main modes:
   [yellow]--symlinks[/yellow]          Preserve symlinks as links (default: follow them).
   [yellow]--exclude-symlinks[/yellow]  Exclude all symlinks from the backup.
   [yellow]--manifest-sha[/yellow]       Generate SHA256 checksums for all files (slower).
-  [yellow]--yes[/yellow]                 Skip the confirmation prompt.
+  [yellow]-y, --yes[/yellow]             Skip the confirmation prompt.
   [yellow]--dry-run[/yellow]              Simulate the backup without writing files.
 
 [bold green]Best Practices:[/bold green]
@@ -257,7 +257,7 @@ def parse_args():
     p.add_argument("--symlinks", action="store_true", help="preserve symlinks instead of copying targets")
     p.add_argument("--exclude-symlinks", action="store_true", help="exclude symlinks from backup completely")
     p.add_argument("--keep", type=int, default=0, help="keep N newest backups for this project (0 = keep all)")
-    p.add_argument("--yes", action="store_true", help="skip confirmation after space estimate")
+    p.add_argument("-y", "--yes", action="store_true", help="skip confirmation after space estimate")
     p.add_argument("--progress-interval", type=int, default=50, help="print progress every N files")
     p.add_argument("--exclude", action="append", default=[], help="exclude files/dirs (substring or glob) - can be used multiple times")
     p.add_argument("--dry-run", action="store_true", help="only estimate and show actions, do not write (for incremental allow rsync dry-run)")
@@ -288,7 +288,8 @@ def parse_args():
 
 def main():
     start_time = time.time()
-    print_logo()
+    if not os.environ.get("PV_SUBTOOL_NO_LOGO"):
+        print_logo(tool="clone")
     if len(sys.argv) > 1 and sys.argv[1] == "vault":
         vault_main()
         return

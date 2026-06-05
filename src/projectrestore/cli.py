@@ -61,7 +61,7 @@ from src.projectrestore.modules.extraction import safe_extract_atomic
 from src.projectrestore.modules.locking import create_pid_lock, release_pid_lock
 from src.projectrestore.modules.signals import GracefulShutdown
 from src.projectrestore.modules.utils import count_files, find_latest_backup
-from .banner import print_logo
+from src.common.banner import print_logo
 from . import restore_engine
 
 LOG = logging.getLogger("extract_backup")
@@ -345,7 +345,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    print_logo()
+    if not os.environ.get("PV_SUBTOOL_NO_LOGO"):
+        print_logo(tool="restore")
     if len(sys.argv) > 1 and sys.argv[1] == "vault-restore":
         vault_restore_main()
         return 0

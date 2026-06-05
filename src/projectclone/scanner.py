@@ -11,7 +11,7 @@ def get_project_ignore_spec(root: Path) -> PathSpec:
     """
     Load .pvignore and .vaultignore from root and return a PathSpec.
     """
-    patterns = []
+    patterns = ['.git', '__pycache__', '.DS_Store', '.venv', 'venv']
     # Support both for compatibility, prefer .pvignore
     for fname in [".vaultignore", ".pvignore"]:
         fpath = root / fname

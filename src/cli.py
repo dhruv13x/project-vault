@@ -196,6 +196,7 @@ def _real_main():
         if defaults.get("endpoint") and "--endpoint" not in sys.argv:
             sys.argv.extend(["--endpoint", defaults["endpoint"]])
             
+        os.environ["PV_SUBTOOL_NO_LOGO"] = "1"
         cli_module.main()
         return
 
@@ -378,7 +379,7 @@ def _real_main():
     set_creds_parser.add_argument("--secret-key", required=True, help="Cloud Secret Key")
 
     # --- Cloud Env Check Command ---
-    subparsers.add_parser("check-env", help="Verify Cloud Environment Variables (S3/B2)", formatter_class=RichHelpFormatter)
+    subparsers.add_parser("doctor", aliases=["check-env"], help="Verify Cloud Environment Variables & Dependencies (S3/B2)", formatter_class=RichHelpFormatter)
 
     # --- Notify Test Command ---
     subparsers.add_parser("notify-test", help="Send a test notification", formatter_class=RichHelpFormatter)
@@ -457,7 +458,7 @@ def _real_main():
     elif args.command == "config":
         handle_config_command(args)
 
-    elif args.command == "check-env":
+    elif args.command in ("doctor", "check-env"):
         check_cloud_env(credentials)
 
     elif args.command == "notify-test":

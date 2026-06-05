@@ -285,11 +285,12 @@ class TestMainCli:
         mock_sys_exit.assert_not_called()
 
     def test_check_env_command_calls_check_cloud_env(self, mock_sys_exit, mock_config_load, mock_full_env):
-        sys.argv = ['pv', 'check-env']
-        with patch('cli.check_cloud_env') as mock_check_env:
-            main()
-            mock_check_env.assert_called_once()
-            mock_sys_exit.assert_not_called() 
+        for cmd in ['check-env', 'doctor']:
+            sys.argv = ['pv', cmd]
+            with patch('cli.check_cloud_env') as mock_check_env:
+                main()
+                mock_check_env.assert_called_once()
+                mock_sys_exit.assert_not_called() 
 
     def test_sync_command_missing_env_vars(self, mock_sys_exit, capture_stdout, mock_config_load, mock_sync_engine, mock_full_env):
         sys.argv = ['pv', 'push', '/vault', '--bucket', 'b', '--endpoint', 'e']

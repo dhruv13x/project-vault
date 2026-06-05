@@ -43,7 +43,7 @@ def backup_to_vault(source_path: str, vault_path: str, project_name: str = None,
 
     # Prepare Ignore Patterns
     # Default ignores (system files)
-    ignore_patterns = ['.git', '__pycache__', '.DS_Store']
+    ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.venv', 'venv']
     # Note: We do NOT ignore .pvignore or .vaultignore themselves, they should be backed up.
 
     # Load user ignores

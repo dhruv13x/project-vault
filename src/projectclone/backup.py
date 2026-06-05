@@ -486,8 +486,8 @@ def rsync_incremental(
     # Rsync supports --exclude-from. We can pass the path to .pvignore if it exists!
 
     args = ["rsync", "-aH", "--delete"]
-    # default exclude .git folder inside repo (conservative)
-    args += ["--exclude", "*/.git/*"]
+    # default exclude .git, .venv, and venv folders inside repo (conservative)
+    args += ["--exclude", "*/.git/*", "--exclude", "*/.venv/*", "--exclude", "*/venv/*"]
 
     for ex in (excludes or []):
         args += ["--exclude", ex]

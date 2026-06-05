@@ -71,10 +71,13 @@ def get_local_status(source_path: str, vault_path: str, project_name: str = None
 
     # 2. Scan Working Directory
     # Load ignore patterns
-    ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore']
+    ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore', '.pvignore', '.venv', 'venv']
     vaultignore_path = os.path.join(source_path, ".vaultignore")
     if os.path.exists(vaultignore_path):
         ignore_patterns.extend(ignore.parse_ignore_file(vaultignore_path))
+    pvignore_path = os.path.join(source_path, ".pvignore")
+    if os.path.exists(pvignore_path):
+        ignore_patterns.extend(ignore.parse_ignore_file(pvignore_path))
 
     scanned_files = set()
 
@@ -201,10 +204,13 @@ def show_status(source_path, vault_path, cloud_config=None):
         rel_vault = os.path.relpath(abs_vault, abs_source)
         
         # Load ignores to check
-        ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore']
+        ignore_patterns = ['.git', '__pycache__', '.DS_Store', '.vaultignore', '.pvignore', '.venv', 'venv']
         pvignore_path = os.path.join(source_path, ".pvignore")
         if os.path.exists(pvignore_path):
             ignore_patterns.extend(ignore.parse_ignore_file(pvignore_path))
+        vaultignore_path = os.path.join(source_path, ".vaultignore")
+        if os.path.exists(vaultignore_path):
+            ignore_patterns.extend(ignore.parse_ignore_file(vaultignore_path))
         
         # We use a simple check here or reuse scanner logic. 
         # scanner.matches_excludes is robust.

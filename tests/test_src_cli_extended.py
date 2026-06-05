@@ -75,11 +75,12 @@ class TestCliExtended:
     @patch('src.cli.check_cloud_env')
     def test_check_env_command(self, mock_check_cloud_env):
         """
-        Test the 'check-env' command.
+        Test the 'check-env' and 'doctor' commands.
         """
-        with patch.object(sys, 'argv', ['pv', 'check-env']):
-            cli._real_main()
-        mock_check_cloud_env.assert_called_once()
+        for cmd in ['check-env', 'doctor']:
+            with patch.object(sys, 'argv', ['pv', cmd]):
+                cli._real_main()
+        assert mock_check_cloud_env.call_count == 2
 
     @patch('src.projectclone.gc_engine.run_garbage_collection')
     def test_gc_command(self, mock_run_garbage_collection):

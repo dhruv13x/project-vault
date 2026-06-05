@@ -144,7 +144,7 @@ def print_main_help():
   [cyan]gc[/cyan]              Clean up orphaned objects from the vault.
   [cyan]check-integrity[/cyan] Verify the integrity of the local vault.
   [cyan]init[/cyan]            Create a default `pv.toml` configuration file.
-  [cyan]check-env[/cyan]       Verify cloud environment variables are set.
+  [cyan]doctor[/cyan]          Verify cloud environment variables & dependencies (alias: check-env).
 
 [bold green]Global Options[/bold green]
   [yellow]-h, --help[/yellow]      Show this help message and exit.
